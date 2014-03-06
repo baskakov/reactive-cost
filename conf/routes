@@ -6,8 +6,10 @@
 GET        /                         controllers.Application.index
 
 GET        /estimate                 controllers.Application.estimate(url: String?="")
-GET        /estimate?url=:url        controllers.Application.estimate(url:String)
+
+GET     /websocket/                 controllers.Application.indexWS
 
 # Map static resources from the /public folder to the /assets URL path
+GET     /assets/javascripts/routes  controllers.Application.javascriptRoutes
 GET        /assets/*file             controllers.Assets.at(path="/public", file)
 GET        /webjars/*file            controllers.WebJarAssets.at(file)

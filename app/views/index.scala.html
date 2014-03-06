@@ -1,7 +1,55 @@
-@(message: String)
+@(title: String)(implicit content: Html = Html(""))
 
-@main("Welcome to Play") {
+<!DOCTYPE html>
 
-    @play20.welcome(message)
+<html>
+    <head>
+        <title>@title</title>
+        <link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">
+        <link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">        
+        
+        <link rel='stylesheet' href='@routes.WebJarAssets.at(WebJarAssets.locate("bootstrap.min.css"))'>
+		<script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'></script>
+        <script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("bootstrap.min.js"))'></script>
+		<script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("angular.min.js"))'></script>
+		
+		<script src="@routes.Assets.at("javascripts/routes")" type="text/javascript"></script>
+		<script src="@routes.Assets.at("javascripts/app.js")" type="text/javascript"></script>
 
-}
+		@*<script src="@routes.Assets.at("javascripts/jquery-1.9.0.min.js")" type="text/javascript"></script>
+        <link rel="stylesheet" href="@routes.Assets.at("bootstrap/css/space-bootstrap.css")">
+        <link rel="stylesheet" href="@routes.Assets.at("bootstrap/css/bootstrap-responsive.css")">
+		
+		
+        <script type='text/javascript' src="@routes.Assets.at("bootstrap/js/bootstrap.js")"></script>*@
+    </head>
+    <body ng-controller="MainController" ng-app="estimatorApp">
+        <nav class="navbar navbar-default" role="navigation">
+            <div class="container-fluid">
+                    <!-- Brand and toggle get grouped for better mobile display -->
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="#">Reactive COST</a>
+                </div>
+				
+				<form class="navbar-form navbar-left">
+                    <div class="form-group">
+						<input type="text" class="form-control" placeholder="Поиск" name="url" ng-model="request.url">
+                    </div>
+					<button type="button" class="btn btn-default" ng-click="estimate()">
+						<span class="glyphicon glyphicon-search"></span>
+					</button>
+                </form>
+            </div>
+        </nav>
+		<section>
+			<h1 ng-bind="result.url"></h1>
+			<p ng-bind="result.message"></p>
+		</section>
+    </body>
+</html>
