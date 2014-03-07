@@ -94,8 +94,8 @@ trait Secured {
    * random userId and reload index page
    */
   def unauthF(request: RequestHeader) = {
-    val newId: String = new Random().nextInt().toString()
-    Redirect(routes.Application.index).withSession(Security.username -> newId)
+    val uid: String = UidGenerator.generate
+    Redirect(routes.Application.index).withSession(Security.username -> uid)
   }
 
   /**
@@ -103,10 +103,9 @@ trait Secured {
    * try to retieve the username, call f() if it is present,
    * or unauthF() otherwise
    */
-  def withAuth(f: => Int => Request[_ >: AnyContent] => Result): EssentialAction = {
+  def withAuth(f: => UserId => Request[_ >: AnyContent] => Result): EssentialAction = {
     Security.Authenticated(username, unauthF) {
-      username =>
-        Action(request => f(username.toInt)(request))
+      username => Action(request => f(UserId(username))(request))
     }
   }
 
@@ -117,7 +116,7 @@ trait Secured {
    * or create an error Future[(Iteratee[JsValue, Unit], Enumerator[JsValue])])
    * if username is none  
    */
-  def withAuthWS(f: => Int => Future[(Iteratee[JsValue, Unit], Enumerator[JsValue])]): WebSocket[JsValue] = {
+  def withAuthWS(f: => UserId => Future[(Iteratee[JsValue, Unit], Enumerator[JsValue])]): WebSocket[JsValue] = {
 
     // this function create an error Future[(Iteratee[JsValue, Unit], Enumerator[JsValue])])
     // the itaratee ignore the input and do nothing,
@@ -138,13 +137,15 @@ trait Secured {
     WebSocket.async[JsValue] {
       request =>
         username(request) match {
-          case None =>
-            errorFuture
-
-          case Some(id) =>
-            f(id.toInt)
-            
+          case None => errorFuture
+          case Some(userName) => f(UserId(userName))            
         }
     }
   }
 }
+
+object UidGenerator {
+  def generate = java.util.UUID.randomUUID.toString
+}
+
+case class UserId(userName: String)

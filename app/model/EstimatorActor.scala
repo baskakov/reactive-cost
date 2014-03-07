@@ -10,6 +10,7 @@ import akka.actor.Props
 import akka.pattern.ask
 import akka.util.Timeout
 import models._
+import controllers._
 
 import play.api.libs.iteratee.{Concurrent, Enumerator}
 
@@ -26,15 +27,16 @@ class EstimatorActor extends Actor {
   // crate a scheduler to send a message to this actor every socket
   //val cancellable = context.system.scheduler.schedule(0 second, 1 second, self, UpdateTime())
 
-  case class UserChannel(userId: Int, var channelsCount: Int, enumerator: Enumerator[JsValue], channel: Channel[JsValue])
+  case class UserChannel(userId: UserId, var channelsCount: Int, enumerator: Enumerator[JsValue], channel: Channel[JsValue])
 
   lazy val log = Logger("application." + this.getClass.getName)
 
   // this map relate every user with his UserChannel
-  var webSockets = Map[Int, UserChannel]()
+  var webSockets = Map[UserId, UserChannel]()
+  
 
   // this map relate every user with his current time
-  var usersUrls = Map[Int, String]()
+  var usersUrls = Map[UserId, String]()
 
   override def receive = {
 
@@ -79,7 +81,7 @@ class EstimatorActor extends Actor {
       })
 	  toRemove.foreach(removeUserUrls _)
 	case Estimate(userId, url) => 
-	  log.debug(s"Estimate new url $userId $url")  
+	  log.debug(s"Estimate new url $userId.userName $url")  
 	  if(!usersUrls.exists(_._2 == url)) {
 		whoisActor ! WhoisRequest(url)
 		addUserUrl(userId, url)
@@ -114,25 +116,24 @@ class EstimatorActor extends Actor {
 
   }
 
-  def removeUserUrls(userId: Int) = usersUrls -= userId
-  def addUserUrl(userId: Int, url: String) = usersUrls += userId -> url
-  def removeUserChannel(userId: Int) = webSockets -= userId
-
+  def removeUserUrls(userId: UserId) = usersUrls -= userId
+  def addUserUrl(userId: UserId, url: String) = usersUrls += userId -> url
+  def removeUserChannel(userId: UserId) = webSockets -= userId
 }
 
 
 sealed trait SocketMessage
 
-case class StartSocket(userId: Int) extends SocketMessage
+case class StartSocket(userId: UserId) extends SocketMessage
 
-case class SocketClosed(userId: Int) extends SocketMessage
+case class SocketClosed(userId: UserId) extends SocketMessage
 
 case class UpdateTime() extends SocketMessage
 
-case class Estimate(userId: Int, url: String)
+case class Estimate(userId: UserId, url: String)
 
 //unused
-case class Start(userId: Int) extends SocketMessage
+case class Start(userId: UserId) extends SocketMessage
 
-case class Stop(userId: Int) extends SocketMessage
+case class Stop(userId: UserId) extends SocketMessage
 
