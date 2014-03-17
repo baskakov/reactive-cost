@@ -33,21 +33,21 @@ object Application extends Controller with Secured {
     Ok(views.html.index("Reactive COST"))
   }
   
-  def indexWS = withAuthWS {
+  def indexWS(clientGuid: String) = withAuthWS {
     userId =>
 
       implicit val timeout = Timeout(3 seconds)
 
       // using the ask pattern of akka, 
       // get the enumerator for that user
-      (estimatorActor ? StartSocket(userId)) map {
+      (estimatorActor ? StartSocket(UserChannelId(userId, clientGuid))) map {
         enumerator =>
 
           // create a Iteratee which ignore the input and
           // and send a SocketClosed message to the actor when
           // connection is closed from the client
           (Iteratee.ignore[JsValue] map {
-            _ => estimatorActor ! SocketClosed(userId)
+            _ => estimatorActor ! SocketClosed(UserChannelId(userId, clientGuid))
           }, enumerator.asInstanceOf[Enumerator[JsValue]])
       }
   }
@@ -61,11 +61,11 @@ object Application extends Controller with Secured {
     Ok(views.html.main(socketResult))
   }*/
   
-  def estimate(url: String) = withAuth {
+  def estimate(clientGuid: String, url: String) = withAuth {
     (userId) => implicit request =>
-      estimatorActor ! Estimate(userId, url)
+      estimatorActor ! Estimate(UserChannelId(userId, clientGuid), url)
       Ok("")
-  }
+  }   
   
   def javascriptRoutes = Action {
     implicit request =>
@@ -149,3 +149,4 @@ object UidGenerator {
 }
 
 case class UserId(userName: String)
+case class UserChannelId(userId: UserId, clientGuid: String)

@@ -1,9 +1,14 @@
 estimatorApp = window.angular.module('estimatorApp', ['ngSanitize'])
 
 estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
-  $log.info("angular init")
+  S4 = -> (((1+Math.random())*0x10000)|0).toString(16).substring(1)				
+		
+  $scope.windowGuid = (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4())	
+		
+  $log.info("angular init with guid " + $scope.windowGuid)
+  
   startWS = ->
-    wsUrl = jsRoutes.controllers.Application.indexWS().webSocketURL()
+    wsUrl = jsRoutes.controllers.Application.indexWS($scope.windowGuid).webSocketURL()
 
     $scope.socket = new WebSocket(wsUrl)
     $scope.socket.onmessage = (msg) ->
@@ -23,7 +28,7 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
   $scope.estimate = ->
     $log.info("estimating " + $scope.request.url)
     modelToHash()
-    $http.get(jsRoutes.controllers.Application.estimate($scope.request.url).url).success(->)
+    $http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
 
   $scope.result = {}
 
