@@ -373,15 +373,16 @@
     <tld>asia</tld>
   </WhoisServerDefinition>
   
-  <WhoisServerDefinition>
+  <!--<WhoisServerDefinition>
     <name>whois.ripn.ru</name>
     <address>whois.ripn.ru</address>
     <tld>ru</tld>
-  </WhoisServerDefinition>
+  </WhoisServerDefinition>-->
   
   <WhoisServerDefinition>
     <name>whois.ripn.net</name>
     <address>whois.ripn.net</address>
+	<tld>ru</tld>
     <tld>com.ru</tld>
     <tld>int.ru</tld>
     <tld>net.ru</tld>
