@@ -7,6 +7,7 @@ import akka.actor.Actor
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import akka.actor.Props
+import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import models._
@@ -28,49 +29,30 @@ class EstimatorActor extends Actor {
 
   lazy val log = Logger("application." + this.getClass.getName)
   
-  def workingState(webSockets: Map[UserChannelId, UserChannel], usersUrls: Map[UserChannelId, String]): Actor.Receive = {
-	def become(webSockets: Map[UserChannelId, UserChannel], usersUrls: Map[UserChannelId, String]) = context.become(workingState(webSockets, usersUrls))
+  def workingState(subscribers: Map[String, Set[ActorRef]]): Actor.Receive = {
+	def become(subscribers: Map[String, Set[ActorRef]]) = context.become(workingState(subscribers))
+	
+	def subscribersFor(url: String) = subscribers.get(url).getOrElse(Set.empty)
+	
+	def append(sender: ActorRef, url: String) = become(subscribers + (url -> (subscribersFor(url) + sender)))	
 	
 	{
-		case StartSocket(userChannelId) =>
-		  val userChannel: UserChannel = webSockets.get(userChannelId) getOrElse {
-			val broadcast: (Enumerator[JsValue], Channel[JsValue]) = Concurrent.broadcast[JsValue]
-			UserChannel(userChannelId, broadcast._1, broadcast._2)
-		  }
-		  become(webSockets + (userChannelId -> userChannel), usersUrls)
-		  sender ! userChannel.enumerator
 		case WhoisResult(url, message) => 
-		  val toRemoveIds = usersUrls.collect({
-			case (userChannelId, userUrl) if userUrl == url => {
-
-			  val json = Map("url" -> toJson(url), "message" -> toJson(message))
-				
-			  webSockets(userChannelId).channel push Json.toJson(json)
-			  userChannelId
-			  }
-		  })
-		  become(webSockets, usersUrls -- toRemoveIds)
-		case Estimate(userChannelId, url) => 
-		  log.debug(s"Estimate new url $userChannelId $url")  
-		  become(webSockets, usersUrls + (userChannelId -> url))
-		  if(!usersUrls.exists(_._2 == url)) whoisActor ! WhoisRequest(url)
-		case SocketClosed(userChannelId) =>
-		  log debug s"closed socket for $userChannelId"
-		  become(webSockets - userChannelId, usersUrls - userChannelId)
+		  val toSend = subscribersFor(url)
+		  become(subscribers - url)
+		  toSend.foreach(_ ! EstimateResult(url, message))		  
+		case Estimate(url) => 
+		  log.debug(s"EstimatorActor received $url")  
+		  val alreadySent = subscribers.contains(url)
+		  append(sender, url)
+		  if(!alreadySent) whoisActor ! WhoisRequest(url)		  		  
     }
   }
 
-  override def receive = workingState(Map.empty, Map.empty) 
+  override def receive = workingState(Map.empty) 
 }
 
+case class Estimate(url: String)
 
-sealed trait SocketMessage
-
-case class StartSocket(userChannelId: UserChannelId) extends SocketMessage
-
-case class SocketClosed(userChannelId: UserChannelId) extends SocketMessage
-
-case class UpdateTime() extends SocketMessage
-
-case class Estimate(userChannelId: UserChannelId, url: String)
+case class EstimateResult(url: String, message: String)
 

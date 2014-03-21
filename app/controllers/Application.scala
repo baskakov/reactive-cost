@@ -26,8 +26,8 @@ import models._
 
 object Application extends Controller with Secured {     
   
-  val estimatorActor = 
-	Akka.system.actorOf(Props[EstimatorActor], name = "estimator")
+  val webSocketActor = 
+	Akka.system.actorOf(Props[WebSocketActor], name = "WebSocketActor")
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))
@@ -40,30 +40,21 @@ object Application extends Controller with Secured {
 
       // using the ask pattern of akka, 
       // get the enumerator for that user
-      (estimatorActor ? StartSocket(UserChannelId(userId, clientGuid))) map {
+      (webSocketActor ? StartSocket(UserChannelId(userId, clientGuid))) map {
         enumerator =>
 
           // create a Iteratee which ignore the input and
           // and send a SocketClosed message to the actor when
           // connection is closed from the client
           (Iteratee.ignore[JsValue] map {
-            _ => estimatorActor ! SocketClosed(UserChannelId(userId, clientGuid))
+            _ => webSocketActor ! SocketClosed(UserChannelId(userId, clientGuid))
           }, enumerator.asInstanceOf[Enumerator[JsValue]])
       }
   }
-
-  /*def estimate(url: String) = Action {
-    Ok(views.html.main("Reactive COST estimated: "+url)(Html(Whois.getRawWhoisResults(url))))
-  }  
-  
-  def start(url) = Action { implicit request =>
-    whoisActor ! RequestWhois(url)
-    Ok(views.html.main(socketResult))
-  }*/
   
   def estimate(clientGuid: String, url: String) = withAuth {
     (userId) => implicit request =>
-      estimatorActor ! Estimate(UserChannelId(userId, clientGuid), url)
+      webSocketActor ! EstimateSocket(UserChannelId(userId, clientGuid), url)
       Ok("")
   }   
   
@@ -76,11 +67,6 @@ object Application extends Controller with Secured {
         )
       ).as("text/javascript")
    }
-
-  /*def result = WebSocket.async[JsValue] { request =>
-    val printlnIteratee = Iteratee.foreach[JsValue](js => println(js))
-    (piActor ? 'join).mapTo[Enumerator[JsValue]].asPromise map { enum => (printlnIteratee -> enum) }
-  }*/
 }
 
 trait Secured {
