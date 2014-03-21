@@ -28,6 +28,8 @@ object Application extends Controller with Secured {
   
   val webSocketActor = 
 	Akka.system.actorOf(Props[WebSocketActor], name = "WebSocketActor")
+	
+  val serverActor = Akka.system.actorOf(Props[ServerActor])
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))
@@ -54,9 +56,19 @@ object Application extends Controller with Secured {
   
   def estimate(clientGuid: String, url: String) = withAuth {
     (userId) => implicit request =>
-      webSocketActor ! EstimateSocket(UserChannelId(userId, clientGuid), url)
+      serverActor ! SocketRequest(UserChannelId(userId, clientGuid), Estimate(url))
       Ok("")
-  }   
+  }
+
+  def estimateRest(url: String) = Action {
+   Async {
+    (serverActor ? RestRequest(Estimate(url))).mapTo[RespondableMessage].asPromise.map(resultBy _)        
+   }
+  }
+  
+  private def resultBy: RespondableMessage => Result = {
+	case m: JsonServerMessage => Ok(m.toJson)
+  }
   
   def javascriptRoutes = Action {
     implicit request =>
@@ -136,3 +148,19 @@ object UidGenerator {
 
 case class UserId(userName: String)
 case class UserChannelId(userId: UserId, clientGuid: String)
+
+trait RequestMessage
+
+case class ResponseMessage(request: RequestMessage, response: Any)
+
+trait ClientMessage
+
+trait JsonServerMessage extends RespondableMessage with PushableMessage {
+	def toJson: JsValue
+}
+
+case class SimpleJsonServerMessage(toJson: JsValue)
+
+case class SocketRequest(userChannelId: UserChannelId, message: ClientMessage) extends RequestMessage 
+
+case class RestRequest(message: ClientMessage) extends RequestMessage 

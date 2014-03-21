@@ -20,6 +20,52 @@ import play.api.libs.concurrent.Execution.Implicits._
 
 import scala.concurrent.duration._
 
+class ServerActor exists Actor {
+	val socketActor = context.system.actorOf(Props[WebSocketActor])
+	
+	val messageWorker = context.system.actorOf(Props[EstimatorActor])		
+	
+	def workingState(subscribers: Map[ClientMessage, Set[(RequestMessage, ActorRef)]]): Actor.Receive = {
+	
+	    def subscribersFor(response: WorkerResponse): (ClientMessage, Set[(RequestMessage, ActorRef)]) = ???
+		
+		def repsonseToPushable: WorkerResponse => PushableMessage = ???
+		
+		def repsonseToRespondable: WorkerResponse => RespondableMessage = ???
+	
+		def append(request: RequestMessage, subscriber: ActorRef) {			
+			context.become(workingState(subscribers + (request.message -> (subscribers.get(request.message).getOrElse(Set.empty) + (request, subscriber)))))
+		}
+		
+		def remove(clientMessage: ClientMessage) {
+			context.become(workingState(subscribers - clientMessage))
+		}
+	
+		{
+			case r@SocketRequest(userChannelId, message) => {
+				append(r,socketActor)
+				if(!subscribers.contains(message)) messageWorker ! message
+			}
+			case r@RestRequest(message) => {
+				append(r,sender)
+				if(!subscribers.contains(message)) messageWorker ! message
+			}			
+			case response: WorkerResponse => {
+				val (clientMessage, subscribed) = subscribersFor(response)
+				remove(clientMessage)
+				subscribed.foreach{
+					case (SocketRequest(userChannelId, _), destination) => 
+						destination ! SocketPush(userChannelId, repsonseToPushable(response))
+					case (RestRequest(_), destination) => 
+						destination ! repsonseToRespondable(response)
+				}
+			}			
+		}
+	}
+	
+	def receive = workingState(Map.empty)
+}
+
 class WebSocketActor extends Actor {
 	val estimatorActor = context.system.actorOf(Props[EstimatorActor])
 	
@@ -68,3 +114,11 @@ case class StartSocket(userChannelId: UserChannelId)
 case class SocketClosed(userChannelId: UserChannelId)
 
 case class EstimateSocket(userChannelId: UserChannelId, url: String)
+
+trait PushableMessage
+
+trait RespondableMessage
+
+case class SocketPush(userChannelId: UserChannelId, message: PushableMessage)
+
+trait WorkerResponse
