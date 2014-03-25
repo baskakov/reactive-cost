@@ -19,52 +19,50 @@ import play.api.Logger
 import play.api.libs.concurrent.Execution.Implicits._
 
 import scala.concurrent.duration._
+import model.{JsonMessage, AwaitResponseMessage, RespondableMessage, ClientMessage}
 
 class WebSocketActor extends Actor {
-	val estimatorActor = context.system.actorOf(Props[EstimatorActor])
+	//val estimatorActor = context.system.actorOf(Props[EstimatorActor])
 	
 	case class UserChannel(userChannelId: UserChannelId, enumerator: Enumerator[JsValue], channel: Channel[JsValue])
 
 	lazy val log = Logger("application." + this.getClass.getName)
   
-	def workingState(webSockets: Map[UserChannelId, UserChannel], usersUrls: Map[UserChannelId, String]): Actor.Receive = {
-		def become(webSockets: Map[UserChannelId, UserChannel], usersUrls: Map[UserChannelId, String]) = context.become(workingState(webSockets, usersUrls))
+	def workingState(webSockets: Map[UserChannelId, UserChannel]): Actor.Receive = {
+		def become(webSockets: Map[UserChannelId, UserChannel]) = context.become(workingState(webSockets))
 	
 		{
 			case StartSocket(userChannelId) =>
 			  val userChannel: UserChannel = webSockets.get(userChannelId) getOrElse {
-				val broadcast: (Enumerator[JsValue], Channel[JsValue]) = Concurrent.broadcast[JsValue]
-				log debug s"created socket for $userChannelId.userId "
-				UserChannel(userChannelId, broadcast._1, broadcast._2)
+				  val broadcast: (Enumerator[JsValue], Channel[JsValue]) = Concurrent.broadcast[JsValue]
+				  log debug s"created socket for $userChannelId.userId "
+				  UserChannel(userChannelId, broadcast._1, broadcast._2)
 			  }
-			  become(webSockets + (userChannelId -> userChannel), usersUrls)
-			  sender ! userChannel.enumerator
-			case EstimateResult(url, message) => 
-			  val toRemoveIds = usersUrls.collect({
-				case (userChannelId, userUrl) if userUrl == url => {
-
-				  val json = Map("url" -> toJson(url), "message" -> toJson(message))
-					
-				  webSockets(userChannelId).channel push Json.toJson(json)
-				  userChannelId
-				  }
-			  })
-			  become(webSockets, usersUrls -- toRemoveIds)
-			case EstimateSocket(userChannelId, url) => 
-			  log.debug(s"Estimate new url $userChannelId.userId $url")  
-			  become(webSockets, usersUrls + (userChannelId -> url))
-			  if(!usersUrls.exists(_._2 == url)) estimatorActor ! Estimate(url)
-			case SocketClosed(userChannelId) =>
+			  become(webSockets + (userChannelId -> userChannel))
+			  sender ! SocketHolder(userChannelId, userChannel.enumerator)
+      case PushSocket(userChannelId, message: JsonMessage) =>
+        webSockets(userChannelId).channel push message.toJson
+			case CloseSocket(userChannelId) =>
 			  log debug s"closed socket for $userChannelId.userId "
-			  become(webSockets - userChannelId, usersUrls - userChannelId)
+			  become(webSockets - userChannelId)
 		}
   }
 
-  override def receive = workingState(Map.empty, Map.empty) 
+  override def receive = workingState(Map.empty)
 }
 
-case class StartSocket(userChannelId: UserChannelId)
+trait SocketMessage extends ClientMessage
 
-case class SocketClosed(userChannelId: UserChannelId)
+trait ResponseMessage {
+  def responseFor: AwaitResponseMessage
+}
 
-case class EstimateSocket(userChannelId: UserChannelId, url: String)
+case class StartSocket(userChannelId: UserChannelId) extends SocketMessage with AwaitResponseMessage
+
+case class SocketHolder(userChannelId: UserChannelId, enumerator: Enumerator[JsValue]) extends ResponseMessage with RespondableMessage {
+  val responseFor = StartSocket(userChannelId)
+}
+
+case class CloseSocket(userChannelId: UserChannelId) extends SocketMessage
+
+case class PushSocket(userChannelId: UserChannelId, message: RespondableMessage) extends SocketMessage

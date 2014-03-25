@@ -1,14 +1,10 @@
 package controllers
 
-import play.api._
-import play.api.templates.Html
-	
+
 import play.api.mvc._
 import play.api.mvc.Results._
+import play.libs.Akka
 import play.api.libs.json._
-import play.api.libs.concurrent._
-import play.api.libs.iteratee._
-import play.api.Play.current
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.iteratee.{Enumerator, Iteratee}
 
@@ -19,45 +15,43 @@ import akka.actor.Props
 import akka.pattern.ask
 import akka.util.Timeout
 
-import scala.util.Random
 import play.api.Routes
 
-import models._
+import model._
+import scala.Some
+import model.SocketOrigin
+import model.RequestMessage
 
 object Application extends Controller with Secured {     
-  
-  val webSocketActor = 
-	Akka.system.actorOf(Props[WebSocketActor], name = "WebSocketActor")
+
+  val serverActor = Akka.system.actorOf(Props[ServerActor])
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))
   }
+
+  implicit val timeout = Timeout(3 seconds)
   
   def indexWS(clientGuid: String) = withAuthWS {
     userId =>
 
-      implicit val timeout = Timeout(3 seconds)
-
-      // using the ask pattern of akka, 
-      // get the enumerator for that user
-      (webSocketActor ? StartSocket(UserChannelId(userId, clientGuid))) map {
-        enumerator =>
-
-          // create a Iteratee which ignore the input and
-          // and send a SocketClosed message to the actor when
-          // connection is closed from the client
-          (Iteratee.ignore[JsValue] map {
-            _ => webSocketActor ! SocketClosed(UserChannelId(userId, clientGuid))
-          }, enumerator.asInstanceOf[Enumerator[JsValue]])
+      (serverActor ? RequestMessage(StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
+        wrapper => (Iteratee.ignore[JsValue] map {
+            _ => serverActor ! CloseSocket(UserChannelId(userId, clientGuid))
+          }, wrapper.enumerator)
       }
   }
   
   def estimate(clientGuid: String, url: String) = withAuth {
     (userId) => implicit request =>
-      webSocketActor ! EstimateSocket(UserChannelId(userId, clientGuid), url)
+      serverActor ! RequestMessage(Estimate(url), SocketOrigin(UserChannelId(userId, clientGuid)))
       Ok("")
-  }   
-  
+  }
+
+  def estimateRest(url: String) = Action.async{
+    (serverActor ? RequestMessage(Estimate(url), RestOrigin)).mapTo[JsonMessage].map(msg => Ok(msg.toJson))
+  }
+
   def javascriptRoutes = Action {
     implicit request =>
       Ok(

@@ -20,12 +20,11 @@ import play.api.Logger
 import play.api.libs.concurrent.Execution.Implicits._
 
 import scala.concurrent.duration._
+import model.{EstimatorMessage, AwaitResponseMessage, ClientMessage}
 
 class EstimatorActor extends Actor {
 
   val whoisActor = context.system.actorOf(Props[WhoisActor])
-
-  case class UserChannel(userChannelId: UserChannelId, enumerator: Enumerator[JsValue], channel: Channel[JsValue])
 
   lazy val log = Logger("application." + this.getClass.getName)
   
@@ -52,7 +51,9 @@ class EstimatorActor extends Actor {
   override def receive = workingState(Map.empty) 
 }
 
-case class Estimate(url: String)
+case class Estimate(url: String) extends AwaitResponseMessage with EstimatorMessage
 
-case class EstimateResult(url: String, message: String)
+case class EstimateResult(url: String, message: String) extends ResponseMessage {
+  def responseFor = Estimate(url)
+}
 
