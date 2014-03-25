@@ -4,6 +4,7 @@ import actors._
 import akka.actor.{Props, ActorRef, Actor}
 import controllers.UserChannelId
 import models.WhoisActor
+import play.api.Logger
 
 class ServerActor extends Actor {
 
@@ -11,6 +12,8 @@ class ServerActor extends Actor {
   val estimateActor: ActorRef = context.system.actorOf(Props[EstimatorActor])
 
   def receive = workingState(Map.empty)
+
+  lazy val log = Logger("application." + this.getClass.getName)
 
   def workingState(subscribers: Map[AwaitResponseMessage, Set[(Origin, ActorRef)]]): Actor.Receive = {
 
@@ -45,6 +48,10 @@ class ServerActor extends Actor {
       case response: ResponseMessage => {
         var responseFor = response.responseFor
         val subs = subscribers.get(responseFor).getOrElse(Set.empty)
+        response match {
+          case EstimateResult(url,_) => log.info("Response for %s to %d".format(url, subs.size))
+          case _ => Unit
+        }
         val responseToClient = toRespondable(response)
         remove(responseFor)
         subs.foreach{

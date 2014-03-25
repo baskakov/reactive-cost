@@ -28,13 +28,16 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
   $scope.estimate = ->
     $log.info("estimating " + $scope.request.url)
     modelToHash()
-    $http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
+    $http.get(jsRoutes.controllers.Application.estimateRest($scope.request.url).url).success((data) ->
+      $log.info("received " + data.message)
+      $scope.result = data)
+    #$http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
 
   $scope.result = {}
 
   $scope.request = {}
 
-  startWS()
+  #startWS()
 
   hashToModel()
 )

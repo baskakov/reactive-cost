@@ -3,13 +3,14 @@
 # ~~~~
 
 # Home page
-GET        /                         controllers.Application.index
+GET        /                                 controllers.Application.index
 
-GET        /estimate                 controllers.Application.estimate(clientGuid: String, url: String)
+GET        /estimate                         controllers.Application.estimate(clientGuid: String, url: String)
+GET        /estimateRest                     controllers.Application.estimateRest(url: String)
 
-GET     /websocket                 controllers.Application.indexWS(clientGuid: String)
+GET        /websocket                        controllers.Application.indexWS(clientGuid: String)
 
 # Map static resources from the /public folder to the /assets URL path
-GET     /assets/javascripts/routes  controllers.Application.javascriptRoutes
-GET        /assets/*file             controllers.Assets.at(path="/public", file)
-GET        /webjars/*file            controllers.WebJarAssets.at(file)
+GET        /assets/javascripts/routes        controllers.Application.javascriptRoutes
+GET        /assets/*file                     controllers.Assets.at(path="/public", file)
+GET        /webjars/*file                    controllers.WebJarAssets.at(file)

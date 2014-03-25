@@ -57,7 +57,8 @@ object Application extends Controller with Secured {
       Ok(
         Routes.javascriptRouter("jsRoutes")(
           routes.javascript.Application.indexWS,
-          routes.javascript.Application.estimate
+          routes.javascript.Application.estimate,
+          routes.javascript.Application.estimateRest
         )
       ).as("text/javascript")
    }
