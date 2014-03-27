@@ -15,19 +15,23 @@ class ServerActor extends Actor {
 
   lazy val log = Logger("application." + this.getClass.getName)
 
-  def workingState(subscribers: Map[AwaitResponseMessage, Set[(Origin, ActorRef)]]): Actor.Receive = {
+  type Subscribers = Map[AwaitResponseMessage, Set[(Origin, ActorRef)]]
+
+  def workingState(subscribers: Subscribers): Actor.Receive = {
 
     def originToRef: Origin => ActorRef = {
       case SocketOrigin(_) => webSocketActor
       case RestOrigin => sender
     }
 
+    def become(subscribers: Subscribers) = context.become(workingState(subscribers), true)
+
     def append(message: AwaitResponseMessage, origin: Origin) {
-      context.become(workingState(subscribers + (message -> (subscribers.get(message).getOrElse(Set.empty) + (origin -> originToRef(origin))))))
+      become(subscribers + (message -> (subscribers.get(message).getOrElse(Set.empty) + (origin -> originToRef(origin)))))
     }
 
     def remove(message: AwaitResponseMessage) {
-      context.become(workingState(subscribers - message))
+      become(subscribers - message)
     }
 
     def messageToRef: ClientMessage => ActorRef = {
