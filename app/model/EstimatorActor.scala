@@ -39,11 +39,12 @@ class EstimatorActor extends Actor {
 
     {
       case WhoisResult(url, message) =>
+        log.info(s"EstimatorActor got result $url $message")
         val toSend = subscribersFor(url)
         become(subscribers - url)
         toSend.foreach(_ ! EstimateResult(url, message))
       case Estimate(url) =>
-        log.debug(s"EstimatorActor received $url")
+        log.info(s"EstimatorActor received $url")
         val alreadySent = subscribers.contains(url)
         append(sender, url)
         if (!alreadySent) whoisActor ! WhoisRequest(url)

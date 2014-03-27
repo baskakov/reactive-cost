@@ -30,7 +30,7 @@ object Application extends Controller with Secured {
     Ok(views.html.index("Reactive COST"))
   }
 
-  implicit val timeout = Timeout(3 seconds)
+  implicit val timeout = Timeout(10 seconds)
   
   def indexWS(clientGuid: String) = withAuthWS {
     userId =>
