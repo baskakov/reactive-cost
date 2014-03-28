@@ -39,7 +39,7 @@ class EstimatorActor extends Actor {
 
     {
       case WhoisResult(url, message) =>
-        log.info(s"EstimatorActor got result $url $message")
+        log.info(s"EstimatorActor got result $url")
         val toSend = subscribersFor(url)
         become(subscribers - url)
         toSend.foreach(_ ! EstimateResult(url, message))

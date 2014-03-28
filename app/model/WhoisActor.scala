@@ -55,14 +55,14 @@ class WhoisActor extends Actor {
 
   private def askServersPack(url: String, servers: Seq[WhoisServer], failedServers: Seq[(WhoisServer,Throwable)] = Seq.empty): Future[WhoisResult] =
     servers.headOption.map(server => {
-      log.info("Calling server %s %s".format(server.name, server.url))
+      log.info("Calling server %s %s".format(server.name, server.address))
 
       val a = future {
-        Await.result[WhoisResult](askServer(url,server), 2 seconds)
+        Await.result[WhoisResult](askServer(url,server), 3 seconds)
       }
         a.recoverWith({
         case t => {
-          log.warn("For url %s one of the servers (%s, %s) is not responding due to %s".format(url, server.name, server.url, t.getStackTraceString))
+          log.warn("For url %s one of the servers (%s, %s) is not responding due to %s".format(url, server.name, server.address, t.getMessage))
           askServersPack(url, servers.tail, failedServers :+ (server -> t))
         }
       })
@@ -76,7 +76,7 @@ class WhoisActor extends Actor {
         case AllWhoisServersFailed(_, ss) => WhoisResult(url, "Все WHOIS серверы недоступны: " + ss.map(_._1.name).mkString(", "))
       }).onComplete({
         case Success(r) => {
-          log.info("Future completed with result " + r.message)
+          //log.info("Future completed with result " + r.message)
           s ! r
         }
         case Failure(e) => {
@@ -93,36 +93,56 @@ class WhoisActor extends Actor {
 
   def askServer(urlToAsk: String, server: WhoisServer) = {
 
-    val f = future {
-      val socket = new Socket(server.url, WhoisPort)
-      val inputStream = socket.getInputStream
-      val streamReader = new InputStreamReader(inputStream)
-      val bufferReader = new BufferedReader(streamReader)
-      val outputStream = socket.getOutputStream
-      val writer = new OutputStreamWriter(outputStream)
-      val bufferWriter = new BufferedWriter(writer)
-      bufferWriter.write(urlToAsk+System.getProperty("line.separator"))
-      bufferWriter.flush()
-      def readBuffer(acc: List[String]): List[String] = bufferReader.readLine() match {
-        case null => acc
-        case str => {
-          readBuffer(str :: acc)
-        }
-      }
-      val result = readBuffer(Nil).reverse.mkString("\r\n")
-      socket.close
-      inputStream.close
-      WhoisResult(urlToAsk, result)
-    }
 
+    val f = CloseableFuture(
+      {new Socket(server.address, WhoisPort)},
+      (s: Socket) => s.getInputStream,
+      (socket: Socket, inputStream: InputStream) => {
+        val streamReader = new InputStreamReader(inputStream)
+        val bufferReader = new BufferedReader(streamReader)
+        val outputStream = socket.getOutputStream
+        val writer = new OutputStreamWriter(outputStream)
+        val bufferWriter = new BufferedWriter(writer)
+        bufferWriter.write(urlToAsk+System.getProperty("line.separator"))
+        bufferWriter.flush()
+        def readBuffer(acc: List[String]): List[String] = bufferReader.readLine() match {
+          case null => acc
+          case str => {
+            readBuffer(str :: acc)
+          }
+        }
+        val result = readBuffer(Nil).reverse.mkString("\r\n")
+        socket.close
+        inputStream.close
+        WhoisResult(urlToAsk, result)
+      }
+    )
     f
   }
 }
 
-case class WhoisServer(name: String, url: String, tlds: Seq[String])
+case class WhoisServer(name: String, address: String, tlds: Seq[String])
 
 case class AllWhoisServersFailed(url: String, failedServers: Seq[(WhoisServer, Throwable)]) extends Exception
 
 case class NoWhoisServersFound(url: String) extends Exception
 
 case class WhoisServerTimeout(url: String, server: WhoisServer) extends Exception
+
+object CloseableFuture {
+  type Closeable = {
+    def close(): Unit
+  }
+
+  private def withClose[T, F1 <: Closeable](f: => F1, andThen: F1 => Future[T]): Future[T] = future(f).flatMap(closeable => {
+    val internal = andThen(closeable)
+    internal.onComplete(_ => closeable.close())
+    internal
+  })
+
+  def apply[T, F1 <: Closeable](f: => F1, andThen: F1 => T): Future[T] =
+    withClose(f, {c: F1 => future(andThen(c))})
+
+  def apply[T, F1 <: Closeable, F2 <: Closeable](f1: => F1, thenF2: F1 => F2, andThen: (F1,F2) => T): Future [T] =
+    withClose(f1, {c1:F1 => CloseableFuture(thenF2(c1), {c2:F2 => andThen(c1,c2)})})
+}
