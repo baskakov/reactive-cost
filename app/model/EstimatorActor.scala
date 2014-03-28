@@ -1,26 +1,12 @@
 package actors
 
-import play.api.libs.json._
-import play.api.libs.json.Json._
-
 import akka.actor.Actor
-import scala.concurrent.Future
-import scala.concurrent.duration._
 import akka.actor.Props
 import akka.actor.ActorRef
-import akka.pattern.ask
-import akka.util.Timeout
 import models._
-import controllers._
-
-import play.api.libs.iteratee.{Concurrent, Enumerator}
-
-import play.api.libs.iteratee.Concurrent.Channel
 import play.api.Logger
-import play.api.libs.concurrent.Execution.Implicits._
 
-import scala.concurrent.duration._
-import model.{EstimatorMessage, AwaitResponseMessage, ClientMessage}
+import model.{EstimatorMessage, AwaitResponseMessage}
 
 class EstimatorActor extends Actor {
 

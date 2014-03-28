@@ -3,7 +3,6 @@ package model
 import actors._
 import akka.actor.{Props, ActorRef, Actor}
 import controllers.UserChannelId
-import models.WhoisActor
 import play.api.Logger
 
 class ServerActor extends Actor {
