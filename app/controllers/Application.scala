@@ -10,7 +10,6 @@ import play.api.libs.iteratee.{Enumerator, Iteratee}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import actors._
 import akka.actor.Props
 import akka.pattern.ask
 import akka.util.Timeout

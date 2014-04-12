@@ -1,4 +1,4 @@
-package actors
+package model
 
 import play.api.libs.json._
 import play.api.libs.json.Json._
@@ -9,7 +9,6 @@ import scala.concurrent.duration._
 import akka.actor.Props
 import akka.pattern.ask
 import akka.util.Timeout
-import models._
 import controllers._
 
 import play.api.libs.iteratee.{Concurrent, Enumerator}
@@ -19,7 +18,6 @@ import play.api.Logger
 import play.api.libs.concurrent.Execution.Implicits._
 
 import scala.concurrent.duration._
-import model.{JsonMessage, AwaitResponseMessage, RespondableMessage, ClientMessage}
 
 class WebSocketActor extends Actor {
 	//val estimatorActor = context.system.actorOf(Props[EstimatorActor])
@@ -55,12 +53,14 @@ trait SocketMessage extends ClientMessage
 
 trait ResponseMessage {
   def responseFor: AwaitResponseMessage
+  def isFinal: Boolean
 }
 
 case class StartSocket(userChannelId: UserChannelId) extends SocketMessage with AwaitResponseMessage
 
 case class SocketHolder(userChannelId: UserChannelId, enumerator: Enumerator[JsValue]) extends ResponseMessage with RespondableMessage {
   val responseFor = StartSocket(userChannelId)
+  val isFinal = true
 }
 
 case class CloseSocket(userChannelId: UserChannelId) extends SocketMessage

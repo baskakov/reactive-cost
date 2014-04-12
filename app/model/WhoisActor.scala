@@ -1,4 +1,4 @@
-package models
+package model
 
 import akka.actor._
 import play.api._
@@ -21,7 +21,9 @@ import java.util.Collection
 
 case class WhoisRequest(url: String)
 
-case class WhoisResult(url: String, message: String)
+case class WhoisResult(url: String, message: String) extends ResultPartValue {
+    val partId = WhoisPartId
+}
 
 class WhoisActor extends Actor {
   System.setProperty(ServerLister.SERVER_PATH_KEY, "./serverlist.xml")

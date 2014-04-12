@@ -1,6 +1,5 @@
 package model
 
-import actors._
 import akka.actor.{Props, ActorRef, Actor}
 import controllers.UserChannelId
 import play.api.Logger
@@ -40,7 +39,10 @@ class ServerActor extends Actor {
 
     def toRespondable: ResponseMessage => RespondableMessage = {
       case r: RespondableMessage => r
-      case EstimateResult(url, message) => JsonMessage(Map("url" -> url, "message" -> message))
+      case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
+          case (k, w: WhoisResult) => (k.name -> w.message)
+          case (k, p: PageRankResponse) => (k.name -> p.rank)
+      }) + ("isFinal" -> isFinal))
     }
 
     {
@@ -52,14 +54,15 @@ class ServerActor extends Actor {
         var responseFor = response.responseFor
         val subs = subscribers.get(responseFor).getOrElse(Set.empty)
         response match {
-          case EstimateResult(url,_) => log.info("Response for %s to %d".format(url, subs.size))
+          case EstimateResult(url,_,_) => log.info("Response for %s to %d".format(url, subs.size))
           case _ => Unit
         }
         val responseToClient = toRespondable(response)
-        remove(responseFor)
+        if(response.isFinal) remove(responseFor)
         subs.foreach{
           case (SocketOrigin(userChannelId), ref) => ref ! PushSocket(userChannelId, responseToClient)
-          case (RestOrigin, ref) => ref ! responseToClient
+          case (RestOrigin, ref) if response.isFinal => ref ! responseToClient
+          case _ => Unit
         }
       }
     }

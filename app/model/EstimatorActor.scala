@@ -1,34 +1,50 @@
-package actors
+package model
 
 import akka.actor.Actor
 import akka.actor.Props
 import akka.actor.ActorRef
-import models._
 import play.api.Logger
-
-import model.{EstimatorMessage, AwaitResponseMessage}
 
 class EstimatorActor extends Actor {
 
   val whoisActor = context.system.actorOf(Props[WhoisActor])
+  
+  val pageRankActor = context.system.actorOf(Props[PageRankActor])
 
   lazy val log = Logger("application." + this.getClass.getName)
 
   type UrlSubscribers = Map[String, Set[ActorRef]]
+  
+  type PartialValues = Map[String, PartialHolder]
 
-  def workingState(subscribers: UrlSubscribers): Actor.Receive = {
-    def become(subscribers: UrlSubscribers) = context.become(workingState(subscribers), true)
+  def workingState(subscribers: UrlSubscribers, partialValues: PartialValues): Actor.Receive = {
+    def become(subscribers: UrlSubscribers, partialValues: PartialValues) = context.become(workingState(subscribers, partialValues), true)
 
     def subscribersFor(url: String) = subscribers.get(url).getOrElse(Set.empty)
 
-    def append(sender: ActorRef, url: String) = become(subscribers + (url -> (subscribersFor(url) + sender)))
+    def append(sender: ActorRef, url: String) {
+        partialValues.get(url).foreach(currentHolder => sender ! EstimateResult(url, currentHolder.values, false))
+        become(subscribers + (url -> (subscribersFor(url) + sender)), partialValues)
+    }
+    
+    def removeUrl(url: String) {
+        become(subscribers - url, partialValues - url)
+    }
+    
+    def processPart(partValue: ResultPartValue) {
+        val url = partValue.url
+        val currentHolder = partialValues.get(url).getOrElse(PartialHolder(Map.empty))
+        val toSend = subscribersFor(url)
+        val resultMessage = {
+            if(currentHolder.isFull) EstimateResult(url, currentHolder.values)
+            else EstimateResult(url, Map(partValue.partId -> partValue), false)
+        }
+        if(resultMessage.isFinal) removeUrl(url)
+        toSend.foreach(_ ! resultMessage)
+    }
 
     {
-      case WhoisResult(url, message) =>
-        log.info(s"EstimatorActor got result $url")
-        val toSend = subscribersFor(url)
-        become(subscribers - url)
-        toSend.foreach(_ ! EstimateResult(url, message))
+      case p: ResultPartValue => processPart(p)
       case Estimate(url) =>
         log.info(s"EstimatorActor received $url")
         val alreadySent = subscribers.contains(url)
@@ -37,12 +53,40 @@ class EstimatorActor extends Actor {
     }
   }
 
-  override def receive = workingState(Map.empty)
+  override def receive = workingState(Map.empty, Map.empty)
 }
 
 case class Estimate(url: String) extends AwaitResponseMessage with EstimatorMessage
 
-case class EstimateResult(url: String, message: String) extends ResponseMessage {
+trait UrlResponseMessage extends ResponseMessage {
+  def url: String
   def responseFor = Estimate(url)
 }
 
+case class EstimateResult(url: String, values: Map[ResultPartId, ResultPartValue], isFinal: Boolean = true) extends UrlResponseMessage
+
+trait ResultPartId {
+    def name: String
+}
+
+object WhoisPartId extends ResultPartId {
+    val name = "whois"
+}
+
+object PageRankPartId extends ResultPartId {
+    val name = "pageRank"
+}
+
+trait ResultPartValue {
+    def url: String
+    def partId: ResultPartId
+}
+
+
+case class PartialHolder(values: Map[ResultPartId, ResultPartValue]) {
+    def isEmpty = values.isEmpty
+    
+    def isFull = values.contains(WhoisPartId) && values.contains(PageRankPartId)
+    
+    def +(partId: ResultPartId, value: ResultPartValue) = this.copy(values + (partId -> value))
+}
