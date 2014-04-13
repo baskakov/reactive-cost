@@ -42,7 +42,8 @@
         </nav>
 		<div class="container-fluid">
 			<h1 ng-bind="result.url"></h1>
-			<p ng-bind-html="result.message | formatToHtml"></p>
+			<p ng-bind-html="result.whois | formatToHtml"></p>
+            <p>Google PageRank: <span ng-bind="result.pageRank"/></p>
         </div>
     </body>
 </html>
