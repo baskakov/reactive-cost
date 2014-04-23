@@ -42,7 +42,7 @@ class ServerActor extends Actor {
       case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
           case (k, w: WhoisResult) => (k.name -> w.message)
           case (k, p: PageRankResponse) => (k.name -> p.rank)
-      }) + ("isFinal" -> isFinal))
+      }) ++ Map("isFinal" -> isFinal, "url" -> url))
     }
 
     {
