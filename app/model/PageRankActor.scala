@@ -23,7 +23,7 @@ class PageRankActor extends Actor {
             var result = ""
             
             try {
-		        val conn = new URL(url).openConnection
+		        val conn = new URL(requestUrl).openConnection
 		        val br = new BufferedReader(new InputStreamReader(conn.getInputStream))
  
 		        var input = ""
