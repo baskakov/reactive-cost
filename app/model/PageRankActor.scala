@@ -34,8 +34,15 @@ class PageRankActor extends Actor {
 	        } catch {
 		        case e: Exception => log.error(e.getMessage);
 	        }
+            log.info(s"pageRank result $result")
             
-            sender ! PageRankResponse(url, (math.random*10).toInt)
+            val resultInt = try {
+                result.toInt
+              } catch {
+                case _ : Throwable => -1
+              }
+            
+            sender ! PageRankResponse(url, resultInt)
         }
     }
 }
