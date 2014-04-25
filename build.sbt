@@ -17,7 +17,9 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.1.0",
   "org.specs2" %% "specs2" % "1.14" % "test",
   "commons-codec" % "commons-codec" % "1.7",
-  "com.typesafe.akka" %% "akka-testkit" % "2.1.0"
+  "com.typesafe.akka" %% "akka-testkit" % "2.1.0",
+  "com.google.guava" % "guava" % "16.0.1",
+  "com.google.code.findbugs" % "jsr305" % "2.0.3"
 )     
 
 play.Project.playScalaSettings

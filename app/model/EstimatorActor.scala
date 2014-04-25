@@ -16,34 +16,37 @@ class EstimatorActor extends Actor {
   type UrlSubscribers = Map[String, Set[ActorRef]]
 
   type PartialValues = Map[String, PartialHolder]
-
-  def workingState(subscribers: UrlSubscribers, partialValues: PartialValues): Actor.Receive = {
-    def become(subscribers: UrlSubscribers, partialValues: PartialValues) = context.become(workingState(subscribers, partialValues), true)
+  
+  var subscribers: UrlSubscribers = Map.empty 
+  
+  var partialValues: PartialValues = Map.empty
+  
+  val cache = new CacheHolder[String, PartialHolder]()
 
     def subscribersFor(url: String) = subscribers.get(url).getOrElse(Set.empty)
 
     def append(sender: ActorRef, url: String) {
       partialValues.get(url).foreach(currentHolder => sender ! EstimateResult(url, currentHolder.values, false))
-      become(subscribers + (url -> (subscribersFor(url) + sender)), partialValues)
+      subscribers += (url -> (subscribersFor(url) + sender))
     }
 
-    def appendPart(partValue: ResultPartValue) = {
+    def appendPart(partValue: ResultPartValue) {
       val url = partValue.url
-      val currentHolder = holderBy(url)
-      val updatedHolder = currentHolder + (partValue.partId, partValue)
-      become(subscribers, partialValues + (url -> updatedHolder))
-      updatedHolder
+      val updatedHolder = holderBy(url) + (partValue.partId, partValue)
+      partialValues += (url -> updatedHolder)
     }
 
     def holderBy(url: String) = partialValues.get(url).getOrElse(PartialHolder(Map.empty))
 
     def removeUrl(url: String) {
-      become(subscribers - url, partialValues - url)
+      subscribers -= url
+      partialValues -= url
     }
 
     def processPart(partValue: ResultPartValue) {
       val url = partValue.url
-      val currentHolder = appendPart(partValue)
+      appendPart(partValue)
+      val currentHolder = holderBy(url) 
       val toSend = subscribersFor(url)
       val n = partValue.partId.name
       log.info(s"received for $url and $n")
@@ -54,24 +57,33 @@ class EstimatorActor extends Actor {
       val f = resultMessage.isFinal
       val s = currentHolder.values.size
       log.info(s"isFinall $f size $s")
-      if (resultMessage.isFinal) removeUrl(url)
+      if (resultMessage.isFinal) {
+          removeUrl(url)
+          cache.put(url, currentHolder)
+      }
       toSend.foreach(_ ! resultMessage)
     }
 
-    {
+  override def receive = {
       case p: ResultPartValue => processPart(p)
       case Estimate(url) =>
         log.info(s"EstimatorActor received $url")
-        val alreadySent = subscribers.contains(url)
-        append(sender, url)
-        if (!alreadySent) {
-          whoisActor ! WhoisRequest(url)
-          pageRankActor ! PageRankRequest(url)
+        val fromCache = cache.get(url)
+        fromCache match {
+            case Some(currentHolder) => 
+                log.info(s"From cache $url")
+                sender ! EstimateResult(url, currentHolder.values)
+            case None => {
+                log.info(s"New one $url")
+                val alreadySent = subscribers.contains(url)
+                append(sender, url)
+                if (!alreadySent) {
+                  whoisActor ! WhoisRequest(url)
+                  pageRankActor ! PageRankRequest(url)
+                }       
+            }
         }
     }
-  }
-
-  override def receive = workingState(Map.empty, Map.empty)
 }
 
 case class Estimate(url: String) extends AwaitResponseMessage with EstimatorMessage

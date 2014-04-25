@@ -9,43 +9,7 @@ class ServerActor extends Actor {
   val webSocketActor: ActorRef = context.system.actorOf(Props[WebSocketActor])
   val estimateActor: ActorRef = context.system.actorOf(Props[EstimatorActor])
 
-  def receive = workingState(Map.empty)
-
-  lazy val log = Logger("application." + this.getClass.getName)
-
-  type Subscribers = Map[AwaitResponseMessage, Set[(Origin, ActorRef)]]
-
-  def workingState(subscribers: Subscribers): Actor.Receive = {
-
-    def originToRef: Origin => ActorRef = {
-      case SocketOrigin(_) => webSocketActor
-      case RestOrigin => sender
-    }
-
-    def become(subscribers: Subscribers) = context.become(workingState(subscribers), true)
-
-    def append(message: AwaitResponseMessage, origin: Origin) {
-      become(subscribers + (message -> (subscribers.get(message).getOrElse(Set.empty) + (origin -> originToRef(origin)))))
-    }
-
-    def remove(message: AwaitResponseMessage) {
-      become(subscribers - message)
-    }
-
-    def messageToRef: ClientMessage => ActorRef = {
-      case m: SocketMessage => webSocketActor
-      case m: EstimatorMessage => estimateActor
-    }
-
-    def toRespondable: ResponseMessage => RespondableMessage = {
-      case r: RespondableMessage => r
-      case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
-          case (k, w: WhoisResult) => (k.name -> w.message)
-          case (k, p: PageRankResponse) => (k.name -> p.rank)
-      }) ++ Map("isFinal" -> isFinal, "url" -> url))
-    }
-
-    {
+  def receive = {
       case RequestMessage(m, o) =>
         append(m, o)
         messageToRef(m) ! m
@@ -66,7 +30,38 @@ class ServerActor extends Actor {
         }
       }
     }
-  }
+
+  lazy val log = Logger("application." + this.getClass.getName)
+
+  type Subscribers = Map[AwaitResponseMessage, Set[(Origin, ActorRef)]]
+  
+  var subscribers: Subscribers = Map.empty 
+
+    def originToRef: Origin => ActorRef = {
+      case SocketOrigin(_) => webSocketActor
+      case RestOrigin => sender
+    }
+    
+    def append(message: AwaitResponseMessage, origin: Origin) {
+      subscribers += (message -> (subscribers.get(message).getOrElse(Set.empty) + (origin -> originToRef(origin))))
+    }
+    
+    def remove(message: AwaitResponseMessage) {
+      subscribers -= message
+    }
+    
+    def messageToRef: ClientMessage => ActorRef = {
+      case m: SocketMessage => webSocketActor
+      case m: EstimatorMessage => estimateActor
+    }
+    
+    def toRespondable: ResponseMessage => RespondableMessage = {
+      case r: RespondableMessage => r
+      case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
+          case (k, w: WhoisResult) => (k.name -> w.message)
+          case (k, p: PageRankResponse) => (k.name -> p.rank)
+      }) ++ Map("isFinal" -> isFinal, "url" -> url))
+    }
 }
 
 trait ClientMessage
