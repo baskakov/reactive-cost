@@ -8,11 +8,12 @@ import java.net.URLConnection;
 import play.api.Logger
 
 import akka.actor._
+import akka.event.LoggingReceive
 
 class PageRankActor extends Actor {
     lazy val log = Logger("application." + this.getClass.getName)
     
-    def receive = {
+    def receive = LoggingReceive {
         case PageRankRequest(url) => {
             val domain = url
             val jenkinsHash = new JenkinsHash()

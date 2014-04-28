@@ -4,6 +4,7 @@ import akka.actor.Actor
 import akka.actor.Props
 import akka.actor.ActorRef
 import play.api.Logger
+import akka.event.LoggingReceive
 
 class RetrieverActor extends Actor {
     
@@ -33,7 +34,7 @@ class RetrieverActor extends Actor {
         partialValues -= url
     }
     
-    override def receive = {
+    override def receive = LoggingReceive {
         case partValue: ResultPartValue => {
             val url = partValue.url
             appendPart(partValue)
@@ -47,14 +48,12 @@ class RetrieverActor extends Actor {
             val n = partValue.partId.name
             val f = resultMessage.isFinal
             val s = currentHolder.values.size
-            log.info(s"received for $url and $n isFinall $f size $s")
             
             if (resultMessage.isFinal) removeUrl(url)
 
             context.parent ! resultMessage
         }
         case Retrieve(url) => {
-            log.info(s"RetrieverActor received $url")
             val alreadySent = partialValues.contains(url)
             if (!alreadySent) {
                 createEmptyHolder(url)

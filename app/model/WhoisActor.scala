@@ -18,11 +18,14 @@ import java.io.OutputStreamWriter
 import java.net.Socket
 import java.net.UnknownHostException
 import java.util.Collection
+import akka.event.LoggingReceive
 
 case class WhoisRequest(url: String)
 
 case class WhoisResult(url: String, message: String) extends ResultPartValue {
     val partId = WhoisPartId
+
+  override def toString: String = s"WhoisResult($url, ...)"
 }
 
 class WhoisActor extends Actor {
@@ -47,7 +50,7 @@ class WhoisActor extends Actor {
       })
     }).getOrElse(Future.failed[WhoisResult](AllWhoisServersFailed(url, failedServers)))
 
-  def receive = {
+  def receive = LoggingReceive {
     case WhoisRequest(url) => {
       val s = sender
       whoisServers(url).flatMap(servers => askServersPack(url, servers)).recover({

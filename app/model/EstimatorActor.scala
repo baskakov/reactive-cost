@@ -4,6 +4,7 @@ import akka.actor.Actor
 import akka.actor.Props
 import akka.actor.ActorRef
 import play.api.Logger
+import akka.event.LoggingReceive
 
 class EstimatorActor extends Actor {
 
@@ -27,22 +28,17 @@ class EstimatorActor extends Actor {
       subscribers -= url
     }
 
-    override def receive = {
+    override def receive = LoggingReceive {
         case Estimate(url) =>
-            log.info(s"EstimatorActor received $url")
             val alreadySent = subscribers.contains(url)
             append(sender, url)
             if (!alreadySent) cacheActor ! PullFromCache(url)    
-        case CacheFound(url, values) => 
-            log.info(s"EstimatorActor got from cache $url")
+        case CacheFound(url, values) =>
             val result = EstimateResult(url, values, true)
             subscribersFor(url).foreach(_ ! result)
             removeUrl(url)
-        case NoCacheFound(url) => 
-            log.info(s"EstimatorActor no cache for $url")
-            retrieverActor ! Retrieve(url)
-        case m@Retrieved(url, values, isFinal) => 
-            log.info(s"EstimatorActor retrieved content for $url")
+        case NoCacheFound(url) => retrieverActor ! Retrieve(url)
+        case m@Retrieved(url, values, isFinal) =>
             val result = EstimateResult(url, values, isFinal)
             subscribersFor(url).foreach(_ ! result)
             if(isFinal) {
