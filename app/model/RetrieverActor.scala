@@ -51,7 +51,7 @@ class RetrieverActor extends Actor {
             
             if (resultMessage.isFinal) removeUrl(url)
             
-            context.path.parent ! resultMessage
+            context.actorSelection("..") ! resultMessage
         }
         case Retrieve(url) => {
             log.info(s"RetrieverActor received $url")
