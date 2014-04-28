@@ -18,7 +18,7 @@ class ServerActor extends Actor {
         var responseFor = response.responseFor
         val subs = subscribers.get(responseFor).getOrElse(Set.empty)
         response match {
-          case EstimateResult(url,_,_) => log.info("Response for %s to %d".format(url, subs.size))
+          case EstimateResult(url,_,true) => log.info("Response for %s to %d".format(url, subs.size))
           case _ => Unit
         }
         val responseToClient = toRespondable(response)
