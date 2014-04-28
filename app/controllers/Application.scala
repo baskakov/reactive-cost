@@ -23,7 +23,7 @@ import model.RequestMessage
 
 object Application extends Controller with Secured {     
 
-  val serverActor = Akka.system.actorOf(Props[ServerActor])
+  val serverActor = Akka.system.actorOf(Props[ServerActor], "server")
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))

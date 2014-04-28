@@ -6,8 +6,8 @@ import play.api.Logger
 
 class ServerActor extends Actor {
 
-  val webSocketActor: ActorRef = context.system.actorOf(Props[WebSocketActor])
-  val estimateActor: ActorRef = context.system.actorOf(Props[EstimatorActor])
+  val webSocketActor: ActorRef = context.actorOf(Props[WebSocketActor], "webSocket")
+  val estimateActor: ActorRef = context.actorOf(Props[EstimatorActor], "estimator")
 
   def receive = {
       case RequestMessage(m, o) =>
