@@ -32,6 +32,8 @@ class AlexaActor extends Actor {
                     log.info("alexa " +resultInt.toString)
                     resultInt
               }
+            }).recover({
+                case _ => -1
             }).map(rank => AlexaResult(url, rank)).pipeTo(context.parent)
         }
     }
