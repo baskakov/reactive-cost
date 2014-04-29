@@ -44,6 +44,7 @@
 			<h1 ng-bind="result.url"></h1>
 			<p ng-bind-html="result.whois | formatToHtml"></p>
             <p>Google PageRank: <span ng-bind="result.pageRank"/></p>
+            <p>IP adresses: <ul class="list-inline" ng-repeat="item in result.inetAddress"><li ng-bind="item"/></ul></p>
         </div>
     </body>
 </html>

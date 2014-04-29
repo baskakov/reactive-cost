@@ -12,6 +12,8 @@ class RetrieverActor extends Actor {
     
     val pageRankActor = context.actorOf(Props[PageRankActor], "pageRank")
     
+    val inetAddressActor = context.actorOf(Props[InetAddressActor], "inetAddressActor")
+    
     type PartialValues = Map[String, PartialHolder]
     
     lazy val log = Logger("application." + this.getClass.getName)
@@ -59,6 +61,7 @@ class RetrieverActor extends Actor {
                 createEmptyHolder(url)
                 whoisActor ! WhoisRequest(url)
                 pageRankActor ! PageRankRequest(url)
+                inetAddressActor ! InetAddressRequest(url)
             }
             else {
                 val currentHolder = holderBy(url)
