@@ -57,6 +57,7 @@ class ServerActor extends Actor {
           case (k, w: WhoisResult) => (k.name -> w.message)
           case (k, p: PageRankResponse) => (k.name -> p.rank)
           case (k, i: InetAddressResult) => (k.name -> i.values)
+          case (k, r: ParsebleResultPartValue) => (k.name -> r.content)
       }) ++ Map("isFinal" -> isFinal, "url" -> url))
     }
 }
