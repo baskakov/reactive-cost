@@ -45,6 +45,7 @@
 			<p ng-bind-html="result.whois | formatToHtml"></p>
             <p>Google PageRank: <span ng-bind="result.pageRank"/></p>
             <p>IP adresses: <ul class="list-inline" ng-repeat="item in result.inetAddress"><li ng-bind="item"/></ul></p>
+            <p>Alexa rating: <span ng-bind="result.alexa"/></p>
         </div>
     </body>
 </html>
