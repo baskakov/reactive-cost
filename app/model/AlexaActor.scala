@@ -13,11 +13,18 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class AlexaActor extends Actor {
     val AlexaTimeout = 10000
     
+    lazy val log = Logger("application." + this.getClass.getName)
+    
     override def receive = LoggingReceive  {
         case AlexaRequest(url) => {
             val holder = WS.url("http://tools.mercenie.com/alexa-rank-checker/api/?format=json&urls=http://"+url).withRequestTimeout(AlexaTimeout)
             holder.get().map({
-              response =>
+              response => 
+                log.info(response.json.toString)
+                log.info(response.json \ "alexaranks" toString)
+                log.info(response.json \ "alexaranks" \ "first" toString)
+                log.info(response.json \ "alexaranks" \ "first" \ "alexarank" toString)
+                log.info(response.json \ "alexaranks" \ "first" \ "alexarank" \ "0" toString)
                 (response.json \ "alexaranks" \ "first" \ "alexarank" \ "0").as[Int]
             }).map(rank => AlexaResult(url, rank)).pipeTo(context.parent)
         }
