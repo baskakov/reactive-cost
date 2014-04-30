@@ -30,13 +30,22 @@
                     <a class="navbar-brand" href="#">Reactive COST</a>
                 </div>
 				
-				<form class="navbar-form navbar-left" ng-click="estimate()" >
+				<form class="navbar-form navbar-left">
                     <div class="form-group">
 						<input type="text" class="form-control" placeholder="Поиск" name="url" ng-model="request.url" autofocus>
                     </div>
-					<button class="btn btn-default">
+					<button class="btn btn-default" ng-click="estimate()">
 						<span class="glyphicon glyphicon-search"></span>
 					</button>
+					<div class="btn-group">
+                      <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                        {{mode == "post" ? "POST" : "WS"}} <span class="caret"></span>
+                      </button>
+                      <ul class="dropdown-menu" role="menu">
+                        <li><a href="#" ng-click="setMode('post')">POST</a></li>
+                        <li><a href="#" ng-click="setMode('socket')">WebSocket</a></li>
+                      </ul>
+                    </div>
                 </form>
             </div>
         </nav>

@@ -1,6 +1,6 @@
 estimatorApp = window.angular.module('estimatorApp', ['ngSanitize'])
 
-estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
+estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) ->
   S4 = -> (((1+Math.random())*0x10000)|0).toString(16).substring(1)				
 		
   $scope.windowGuid = (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4())	
@@ -14,6 +14,9 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
     $scope.socket.onmessage = (msg) ->
       $scope.$apply(->
         $scope.result = JSON.parse(msg.data))
+        
+  stopWS = ->
+      $scope.socket.close() if $scope.socket
 
   hashToModel = ->
     hash = $location.hash()
@@ -28,16 +31,37 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location) ->
   $scope.estimate = ->
     $log.info("estimating " + $scope.request.url)
     modelToHash()
-    $http.get(jsRoutes.controllers.Application.estimateRest($scope.request.url).url).success((data) ->
-      $log.info("received " + data.message)
-      $scope.result = data)
-    #$http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
+    if $scope.mode == "post"
+        $scope.canceler = $q.defer();
+        $http(
+            method: 'GET'
+            url: jsRoutes.controllers.Application.estimateRest($scope.request.url).url 
+            timeout: $scope.canceler.promise).success((data) ->
+                $log.info("received " + data.message)
+                $scope.canceler = null
+                $scope.result = data).error( -> $scope.canceler = null)
+    else if $scope.mode == "socket"
+        $http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
 
   $scope.result = {}
 
   $scope.request = {}
-
-  #startWS()
+  
+  $scope.mode = "post"
+  
+  $scope.setMode = (mode) ->
+        if mode != $scope.mode
+            if mode == "post"
+                stopRequest()
+                $scope.mode = mode
+                stopWs()
+            else if mode == "socket"
+                stopRequest()
+                $scope.mode = mode
+                startWS()
+                
+  stopRequest = -> 
+      $scope.canceler.resolve() if $scope.canceler
 
   hashToModel()
 )
