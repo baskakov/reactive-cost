@@ -13,7 +13,7 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
     $scope.socket = new WebSocket(wsUrl)
     $scope.socket.onmessage = (msg) ->
       $scope.$apply(->
-        $scope.result = JSON.parse(msg.data))
+        processData(JSON.parse(msg.data)))
         
   stopWS = ->
       $scope.socket.close() if $scope.socket
@@ -39,9 +39,15 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
             timeout: $scope.canceler.promise).success((data) ->
                 $log.info("received " + data.message)
                 $scope.canceler = null
-                $scope.result = data).error( -> $scope.canceler = null)
+                processData(data)).error( -> $scope.canceler = null)
     else if $scope.mode == "socket"
         $http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
+
+  processData = (data) ->
+      if $scope.result and data and data.url and $scope.result.url == data.url
+        angular.extend($scope.result, $scope.result, data)
+      else
+        $scope.result = data
 
   $scope.result = {}
 
@@ -54,7 +60,7 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
             if mode == "post"
                 stopRequest()
                 $scope.mode = mode
-                stopWs()
+                stopWS()
             else if mode == "socket"
                 stopRequest()
                 $scope.mode = mode
