@@ -1,13 +1,17 @@
 package model
 
-import akka.actor.{Props, ActorRef, Actor}
+import akka.actor.{ActorRefFactory, Props, ActorRef, Actor}
 import controllers.UserChannelId
 import play.api.Logger
 
-class ServerActor extends Actor {
+class ServerActor(webSocketFactory: ActorRefFactory => ActorRef,
+                  estimateFactory: ActorRefFactory => ActorRef) extends Actor {
+  def this() = this(
+    _.actorOf(Props[WebSocketActor], "webSocket"),
+    _.actorOf(Props[EstimatorActor], "estimator"))
 
-  val webSocketActor: ActorRef = context.actorOf(Props[WebSocketActor], "webSocket")
-  val estimateActor: ActorRef = context.actorOf(Props[EstimatorActor], "estimator")
+  val webSocketActor: ActorRef = webSocketFactory(context) //context.actorOf(Props[WebSocketActor], "webSocket")
+  val estimateActor: ActorRef = estimateFactory(context) //context.actorOf(Props[EstimatorActor], "estimator")
 
   def receive = {
       case RequestMessage(m, o) =>
