@@ -49,10 +49,6 @@ class RetrieverActor extends Actor {
                 else Retrieved(url, Map(partValue.partId -> partValue), false)
             }
             
-            val n = partValue.partId.name
-            val f = resultMessage.isFinal
-            val s = currentHolder.values.size
-            
             if (resultMessage.isFinal) removeUrl(url)
 
             context.parent ! resultMessage

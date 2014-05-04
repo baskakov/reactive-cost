@@ -10,8 +10,8 @@ class ServerActor(webSocketFactory: ActorRefFactory => ActorRef,
     _.actorOf(Props[WebSocketActor], "webSocket"),
     _.actorOf(Props[EstimatorActor], "estimator"))
 
-  val webSocketActor: ActorRef = webSocketFactory(context) //context.actorOf(Props[WebSocketActor], "webSocket")
-  val estimateActor: ActorRef = estimateFactory(context) //context.actorOf(Props[EstimatorActor], "estimator")
+  val webSocketActor: ActorRef = webSocketFactory(context)
+  val estimateActor: ActorRef = estimateFactory(context)
 
   def receive = {
       case RequestMessage(m, o) =>

@@ -1,16 +1,17 @@
 package model
 
-import akka.actor.Actor
-import akka.actor.Props
-import akka.actor.ActorRef
+import akka.actor.{ActorRefFactory, Actor, Props, ActorRef}
 import play.api.Logger
 import akka.event.LoggingReceive
 
-class EstimatorActor extends Actor {
+class EstimatorActor(cacheFactory: ActorRefFactory => ActorRef,
+                      retrieveFactory: ActorRefFactory => ActorRef) extends Actor {
+  def this() = this(
+    _.actorOf(Props[CacheActor], "cache"),
+    _.actorOf(Props[RetrieverActor], "retriever"))
 
-    val cacheActor = context.actorOf(Props[CacheActor], "cache")
-    
-    val retrieverActor = context.actorOf(Props[RetrieverActor], "retriever")
+    val cacheActor = cacheFactory(context)
+    val retrieverActor = retrieveFactory(context)
     
     lazy val log = Logger("application." + this.getClass.getName)
     
