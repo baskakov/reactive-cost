@@ -41,7 +41,13 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
                 $scope.canceler = null
                 processData(data)).error( -> $scope.canceler = null)
     else if $scope.mode == "socket"
-        $http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
+      if $scope.socket
+        $scope.socket.send(JSON.stringify(
+          "action": "estimate"
+          "parameters":
+            "url": $scope.request.url
+        ))
+        #$http.get(jsRoutes.controllers.Application.estimate($scope.windowGuid, $scope.request.url).url).success(->)
 
   processData = (data) ->
       if $scope.result and data and data.url and $scope.result.url == data.url

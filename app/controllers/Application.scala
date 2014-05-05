@@ -35,9 +35,7 @@ object Application extends Controller with Secured {
     userId =>
 
       (serverActor ? RequestMessage(StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
-        wrapper => (Iteratee.ignore[JsValue] map {
-            _ => serverActor ! CloseSocket(UserChannelId(userId, clientGuid))
-          }, wrapper.enumerator)
+        wrapper => (wrapper.fromClient, wrapper.toClient)
       }
   }
   
