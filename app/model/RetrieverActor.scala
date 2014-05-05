@@ -1,20 +1,26 @@
 package model
 
-import akka.actor.Actor
-import akka.actor.Props
-import akka.actor.ActorRef
+import akka.actor.{ActorRefFactory, Actor, Props, ActorRef}
 import play.api.Logger
 import akka.event.LoggingReceive
 
-class RetrieverActor extends Actor {
+class RetrieverActor(whoisFactory: ActorRefFactory => ActorRef,
+                     pageRankFactory: ActorRefFactory => ActorRef,
+                     ipFactory: ActorRefFactory => ActorRef,
+                     alexaFactory: ActorRefFactory => ActorRef) extends Actor {
+  def this() = this(
+    _.actorOf(Props[WhoisActor], "whois"),
+    _.actorOf(Props[PageRankActor], "pageRank"),
+    _.actorOf(Props[InetAddressActor], "inetAddressActor"),
+    _.actorOf(Props[AlexaActor], "alexaActor"))
     
-    val whoisActor = context.actorOf(Props[WhoisActor], "whois")
+    val whoisActor = whoisFactory(context)
     
-    val pageRankActor = context.actorOf(Props[PageRankActor], "pageRank")
+    val pageRankActor = pageRankFactory(context)
     
-    val inetAddressActor = context.actorOf(Props[InetAddressActor], "inetAddressActor")
+    val inetAddressActor = ipFactory(context)
     
-    val alexaActor = context.actorOf(Props[AlexaActor], "alexaActor")
+    val alexaActor = alexaFactory(context)
     
     type PartialValues = Map[String, PartialHolder]
     

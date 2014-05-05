@@ -1,4 +1,6 @@
 import akka.actor._
+import controllers.UserChannelId
+import controllers.UserId
 import controllers.{UserId, UserChannelId, UidGenerator}
 import model._
 import model.CacheFound
@@ -7,14 +9,17 @@ import model.EstimateResult
 import model.JsonMessage
 import model.NoCacheFound
 import model.PullFromCache
-import model.PushToCache
+import model.PushSocket
 import model.PushToCache
 import model.RequestMessage
+import model.Retrieve
+import model.Retrieved
+import model.SocketOrigin
 import org.specs2.mutable._
 import org.specs2.runner._
 import org.junit.runner._
 
-import akka.testkit.{TestProbe, TestKit, ImplicitSender}
+import akka.testkit.{TestActorRef, TestProbe, TestKit, ImplicitSender}
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
@@ -126,6 +131,47 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       retrieverProbe.send(estimator, Retrieved(url, valueMap, true))
       expectMsg(estimateResult)
       cacheProbe.expectMsg(PushToCache(url, valueMap))
+    }
+  }
+
+  "Retriever actor" must {
+    val parent = TestProbe()
+    val whoisProbe = TestProbe()
+    val pageRankProbe = TestProbe()
+    val ipProbe = TestProbe()
+    val alexaProbe = TestProbe()
+
+    val retriever = TestActorRef(Props(classOf[RetrieverActor],
+      (_ : ActorRefFactory) => whoisProbe.ref,
+      (_ : ActorRefFactory) => pageRankProbe.ref,
+      (_ : ActorRefFactory) => ipProbe.ref,
+      (_ : ActorRefFactory) => alexaProbe.ref
+    ), parent.ref, "retriever")
+
+    "Retrieve data from all sources" in {
+      parent.send(retriever, Retrieve(url))
+
+      whoisProbe.expectMsg(WhoisRequest(url))
+      pageRankProbe.expectMsg(PageRankRequest(url))
+      ipProbe.expectMsg(InetAddressRequest(url))
+      alexaProbe.expectMsg(AlexaRequest(url))
+
+      val whoisResult = WhoisResult(url, "Foo Bar")
+      whoisProbe.send(retriever, whoisResult)
+      parent.expectMsg(Retrieved(url, Map(WhoisPartId -> whoisResult), false))
+
+      val pageRankResult = PageRankResponse(url, 42)
+      pageRankProbe.send(retriever, pageRankResult)
+      parent.expectMsg(Retrieved(url, Map(PageRankPartId -> pageRankResult), false))
+
+      val ipResult = InetAddressResult(url, List("127.0.0.1"))
+      ipProbe.send(retriever, ipResult)
+      parent.expectMsg(Retrieved(url, Map(InetAddressPartId -> ipResult), false))
+
+      val alexaResult = AlexaResult(url, 42)
+      alexaProbe.send(retriever, alexaResult)
+      parent.expectMsg(Retrieved(url, Map(AlexaPartId -> alexaResult,
+        InetAddressPartId -> ipResult, PageRankPartId -> pageRankResult, WhoisPartId -> whoisResult), true))
     }
   }
 }
