@@ -23,7 +23,9 @@ import model.RequestMessage
 
 object Application extends Controller with Secured {     
 
-  val serverActor = Akka.system.actorOf(Props[ServerActor], "server")
+  val estimatorActor = Akka.system.actorOf(Props[EstimatorActor], "estimator")
+  val serverActor = Akka.system.actorOf(Props(classOf[ServerActor], estimatorActor), "server")
+  val webSocketActor = Akka.system.actorOf(Props(classOf[WebSocketActor], estimatorActor), "webSocket")
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))
@@ -34,7 +36,7 @@ object Application extends Controller with Secured {
   def indexWS(clientGuid: String) = withAuthWS {
     userId =>
 
-      (serverActor ? RequestMessage(StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
+      (webSocketActor ? (StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
         wrapper => (wrapper.fromClient, wrapper.toClient)
       }
   }

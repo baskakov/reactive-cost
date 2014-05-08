@@ -1,14 +1,8 @@
 package model
 
 import play.api.libs.json._
-import play.api.libs.json.Json._
 
-import akka.actor.Actor
-import scala.concurrent.Future
-import scala.concurrent.duration._
-import akka.actor.Props
-import akka.pattern.ask
-import akka.util.Timeout
+import akka.actor.{Props, ActorRef, ActorRefFactory, Actor}
 import controllers._
 
 import play.api.libs.iteratee.{Iteratee, Concurrent, Enumerator}
@@ -17,11 +11,13 @@ import play.api.libs.iteratee.Concurrent.Channel
 import play.api.Logger
 import play.api.libs.concurrent.Execution.Implicits._
 
-import scala.concurrent.duration._
+class WebSocketActor(estimateFactory: ActorRefFactory => ActorRef,
+                     socketSubscriberFactory: ActorRefFactory => ActorRef) extends Actor {
 
-class WebSocketActor extends Actor {
+  def this(estimateFactory: ActorRefFactory => ActorRef) =
+    this(estimateFactory, context.actorOf(Props(classOf[SocketSubscriberActor], estimateFactory), "subscriber"))
 
-  //val estimatorActor = context.system.actorOf(Props[EstimatorActor])
+  val socketSubscriber = socketSubscriberFactory(context)
 
   case class UserChannel(userChannelId: UserChannelId, enumerator: Enumerator[JsValue], channel: Channel[JsValue])
 
@@ -38,7 +34,10 @@ class WebSocketActor extends Actor {
       }
       webSockets += (userChannelId -> userChannel)
 
-      val serverActor = sender
+      val closeSocketFun = {
+        val selfRef = self
+        (_: Unit) => selfRef ! CloseSocket(userChannelId)
+      }
 
       val fromClient = Iteratee.foreach[JsValue](message => {
         log.debug(s"message received from WS $message")
@@ -48,13 +47,11 @@ class WebSocketActor extends Actor {
             val urlOpt = (message \ "parameters" \ "url").asOpt[String]
             urlOpt.foreach(url => {
               log.debug(s"url is $url")
-              serverActor ! RequestMessage(Estimate(url), SocketOrigin(userChannelId))})
+              socketSubscriber ! RequestMessage(Estimate(url), SocketOrigin(userChannelId))})
           }
           case None => Unit
         }
-      }).map {
-        _ => serverActor ! CloseSocket(userChannelId)
-      }
+      }).map(closeSocketFun)
 
       sender ! SocketHolder(userChannelId, userChannel.enumerator, fromClient )
     case PushSocket(userChannelId, message: JsonMessage) =>
@@ -65,7 +62,9 @@ class WebSocketActor extends Actor {
   }
 }
 
-trait SocketMessage extends ClientMessage
+trait SocketMessage extends ClientMessage {
+  def userChannelId: UserChannelId
+}
 
 trait ResponseMessage {
   def responseFor: AwaitResponseMessage
@@ -77,7 +76,7 @@ case class StartSocket(userChannelId: UserChannelId) extends SocketMessage with 
 
 case class SocketHolder(userChannelId: UserChannelId,
                         toClient: Enumerator[JsValue],
-                        fromClient: Iteratee[JsValue, Unit]) extends ResponseMessage with RespondableMessage {
+                        fromClient: Iteratee[JsValue, Unit]) {
   val responseFor = StartSocket(userChannelId)
   val isFinal = true
 }
@@ -85,3 +84,9 @@ case class SocketHolder(userChannelId: UserChannelId,
 case class CloseSocket(userChannelId: UserChannelId) extends SocketMessage
 
 case class PushSocket(userChannelId: UserChannelId, message: RespondableMessage) extends SocketMessage
+
+case class PushMultiCast(userChannelIds: Set[UserChannelId], message: RespondableMessage)
+
+case class SubscribeSocket(userChannelId: UserChannelId, url: String) extends SocketMessage
+
+case class UnSubscribeSocket(userChannelId: UserChannelId) extends SocketMessage
