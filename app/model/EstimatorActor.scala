@@ -17,7 +17,11 @@ class EstimatorActor(cacheFactory: ActorRefFactory => ActorRef,
     
     type UrlSubscribers = Map[String, Set[ActorRef]]
     
-    var subscribers: UrlSubscribers = Map.empty 
+    var subscribers: UrlSubscribers = Map.empty
+
+    var processing: Map[String, Map[ResultPartId, ResultPartValue]] = Map.empty
+
+    def processingFor(url: String) = processing.get(url).getOrElse(Map.empty)
   
     def subscribersFor(url: String) = subscribers.get(url).getOrElse(Set.empty)
 
@@ -27,13 +31,15 @@ class EstimatorActor(cacheFactory: ActorRefFactory => ActorRef,
 
     def removeUrl(url: String) {
       subscribers -= url
+      processing -= url
     }
 
     override def receive = LoggingReceive {
         case Estimate(url) =>
             val alreadySent = subscribers.contains(url)
             append(sender, url)
-            if (!alreadySent) cacheActor ! PullFromCache(url)    
+            if (!alreadySent) cacheActor ! PullFromCache(url)
+            else if(processingFor(url).nonEmpty) sender ! EstimateResult(url, processingFor(url), false)
         case CacheFound(url, values) =>
             val result = EstimateResult(url, values, true)
             subscribersFor(url).foreach(_ ! result)
@@ -42,6 +48,7 @@ class EstimatorActor(cacheFactory: ActorRefFactory => ActorRef,
         case m@Retrieved(url, values, isFinal) =>
             val result = EstimateResult(url, values, isFinal)
             subscribersFor(url).foreach(_ ! result)
+            processing += (url -> (processingFor(url) ++ values))
             if(isFinal) {
               removeUrl(url)
               cacheActor ! PushToCache(url, values)

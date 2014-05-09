@@ -31,10 +31,20 @@ case object TestPartId extends ResultPartId {
   def name: String = "test"
 }
 
+case object TestPart2Id extends ResultPartId {
+  def name: String = "test2"
+}
+
 case class TestPartValue(url: String) extends ParsebleResultPartValue {
   def partId: ResultPartId = TestPartId
 
   def content: Any = "bar"
+}
+
+case class TestPart2Value(url: String) extends ParsebleResultPartValue {
+  def partId: ResultPartId = TestPart2Id
+
+  def content: Any = "foo"
 }
 
 @RunWith(classOf[JUnitRunner])
@@ -131,6 +141,29 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       retrieverProbe.send(estimator, Retrieved(url, valueMap, true))
       expectMsg(estimateResult)
       cacheProbe.expectMsg(PushToCache(url, valueMap))
+    }
+
+    "return partial result for newcommers" in {
+      val sub1 = TestProbe()
+      sub1.send(estimator, Estimate(url))
+      //sub2.send(estimator, Estimate(url))
+      val part1 = Retrieved(url, valueMap, false)
+      cacheProbe.expectMsg(PullFromCache(url))
+      cacheProbe.send(estimator, NoCacheFound(url))
+      retrieverProbe.expectMsg(Retrieve(url))
+      retrieverProbe.send(estimator, part1)
+      val firstResult = EstimateResult(url, part1.values, part1.isFinal)
+      sub1.expectMsg(firstResult)
+
+      val sub2 = TestProbe()
+      sub2.send(estimator, Estimate(url))
+      sub2.expectMsg(firstResult)
+
+      val part2 = Retrieved(url, Map(TestPartId -> TestPartValue(url), TestPart2Id -> TestPart2Value(url)), true)
+      retrieverProbe.send(estimator, part2)
+      val secondResult = EstimateResult(url, part2.values, part2.isFinal)
+      sub1.expectMsg(secondResult)
+      sub2.expectMsg(secondResult)
     }
   }
 
