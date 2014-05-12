@@ -206,5 +206,44 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       parent.expectMsg(Retrieved(url, Map(AlexaPartId -> alexaResult,
         InetAddressPartId -> ipResult, PageRankPartId -> pageRankResult, WhoisPartId -> whoisResult), true))
     }
+
+  }
+
+  "Socket subscriber actor" must {
+    val parent = TestProbe()
+    val estimator = TestProbe()
+    val subscriber = TestActorRef(Props(classOf[SocketSubscriberActor],
+      (_ : ActorRefFactory) => estimator.ref
+    ), parent.ref, "socketSubscriber")
+
+    "Response to all channels" in {
+      val channel1 = UserChannelId(UserId("foo"), "42")
+      val channel2 = UserChannelId(UserId("bar"), "42")
+      parent.send(subscriber, SubscribeSocket(channel1, url))
+      estimator.expectMsg(Estimate(url))
+      parent.send(subscriber, SubscribeSocket(channel2, url))
+      val result = EstimateResult(url, valueMap, true)
+      estimator.reply(result)
+      parent.expectMsg(MultiCastSocket(Set(channel1, channel2), MessageConverter.toRespondable(result)))
+    }
+  }
+
+  "Sender subscriber actor" must {
+    val sub1 = TestProbe()
+    val sub2 = TestProbe()
+    val estimator = TestProbe()
+    val subscriber = TestActorRef(Props(classOf[SenderSubscriberActor],
+      (_ : ActorRefFactory) => estimator.ref
+    ), "senderSubscriber")
+
+    "Response to all refs" in {
+      sub1.send(subscriber, Estimate(url))
+      estimator.expectMsg(Estimate(url))
+      sub2.send(subscriber, Estimate(url))
+      val result = EstimateResult(url, valueMap, true)
+      estimator.reply(result)
+      sub1.expectMsg(result)
+      sub2.expectMsg(result)
+    }
   }
 }

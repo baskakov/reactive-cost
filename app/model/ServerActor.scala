@@ -55,15 +55,7 @@ class ServerActor(webSocketFactory: ActorRefFactory => ActorRef,
       case m: EstimatorMessage => estimateActor
     }
     
-    def toRespondable: ResponseMessage => RespondableMessage = {
-      case r: RespondableMessage => r
-      case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
-          case (k, w: WhoisResult) => (k.name -> w.message)
-          case (k, p: PageRankResponse) => (k.name -> p.rank)
-          case (k, i: InetAddressResult) => (k.name -> i.values)
-          case (k, r: ParsebleResultPartValue) => (k.name -> r.content)
-      }) ++ Map("isFinal" -> isFinal, "url" -> url))
-    }
+    def toRespondable = MessageConverter.toRespondable
 }
 
 trait ClientMessage
@@ -79,3 +71,15 @@ case object RestOrigin extends Origin
 case class SocketOrigin(userChannelId: UserChannelId) extends Origin
 
 case class RequestMessage(message: AwaitResponseMessage, origin: Origin)
+
+object MessageConverter {
+  def toRespondable: ResponseMessage => RespondableMessage = {
+    case r: RespondableMessage => r
+    case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
+      case (k, w: WhoisResult) => (k.name -> w.message)
+      case (k, p: PageRankResponse) => (k.name -> p.rank)
+      case (k, i: InetAddressResult) => (k.name -> i.values)
+      case (k, r: ParsebleResultPartValue) => (k.name -> r.content)
+    }) ++ Map("isFinal" -> isFinal, "url" -> url))
+  }
+}

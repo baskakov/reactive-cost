@@ -35,7 +35,7 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
         $scope.canceler = $q.defer();
         $http(
             method: 'GET'
-            url: jsRoutes.controllers.Application.estimateRest($scope.request.url).url 
+            url: jsRoutes.controllers.Application.estimate($scope.request.url).url
             timeout: $scope.canceler.promise).success((data) ->
                 $log.info("received " + data.message)
                 $scope.canceler = null

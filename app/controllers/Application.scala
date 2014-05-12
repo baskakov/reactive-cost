@@ -10,7 +10,7 @@ import play.api.libs.iteratee.{Enumerator, Iteratee}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import akka.actor.Props
+import akka.actor.{ActorRefFactory, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -23,7 +23,9 @@ import model.RequestMessage
 
 object Application extends Controller with Secured {     
 
-  val serverActor = Akka.system.actorOf(Props[ServerActor], "server")
+  val estimatorActor = Akka.system.actorOf(Props[EstimatorActor], "estimator")
+  val serverActor = Akka.system.actorOf(Props(classOf[SenderSubscriberActor], (_:ActorRefFactory) => estimatorActor), "server")
+  val webSocketActor = Akka.system.actorOf(Props(classOf[WebSocketActor], (_:ActorRefFactory) => estimatorActor), "webSocket")
 
   def index = Action {
     Ok(views.html.index("Reactive COST"))
@@ -33,20 +35,13 @@ object Application extends Controller with Secured {
   
   def indexWS(clientGuid: String) = withAuthWS {
     userId =>
-
-      (serverActor ? RequestMessage(StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
+      (webSocketActor ? (StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
         wrapper => (wrapper.fromClient, wrapper.toClient)
       }
   }
-  
-  def estimate(clientGuid: String, url: String) = withAuth {
-    (userId) => implicit request =>
-      serverActor ! RequestMessage(Estimate(url), SocketOrigin(UserChannelId(userId, clientGuid)))
-      Ok("")
-  }
 
-  def estimateRest(url: String) = Action.async{
-    (serverActor ? RequestMessage(Estimate(url), RestOrigin)).mapTo[JsonMessage].map(msg => Ok(msg.toJson))
+  def estimate(url: String) = Action.async{
+    (serverActor ? Estimate(url)).mapTo[JsonMessage].map(msg => Ok(msg.toJson))
   }
 
   def javascriptRoutes = Action {
@@ -54,8 +49,7 @@ object Application extends Controller with Secured {
       Ok(
         Routes.javascriptRouter("jsRoutes")(
           routes.javascript.Application.indexWS,
-          routes.javascript.Application.estimate,
-          routes.javascript.Application.estimateRest
+          routes.javascript.Application.estimate
         )
       ).as("text/javascript")
    }

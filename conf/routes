@@ -5,8 +5,7 @@
 # Home page
 GET        /                                 controllers.Application.index
 
-GET        /estimate                         controllers.Application.estimate(clientGuid: String, url: String)
-GET        /estimateRest                     controllers.Application.estimateRest(url: String)
+GET        /estimate                         controllers.Application.estimate(url: String)
 
 GET        /websocket                        controllers.Application.indexWS(clientGuid: String)
 
