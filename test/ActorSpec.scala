@@ -1,21 +1,14 @@
 import akka.actor._
-import controllers.UserChannelId
-import controllers.UserId
-import controllers.{UserId, UserChannelId, UidGenerator}
+import controllers.{UserId, UserChannelId}
 import model._
 import model.CacheFound
 import model.Estimate
 import model.EstimateResult
-import model.JsonMessage
 import model.NoCacheFound
 import model.PullFromCache
-import model.PushSocket
 import model.PushToCache
-import model.RequestMessage
 import model.Retrieve
 import model.Retrieved
-import model.SocketOrigin
-import org.specs2.mutable._
 import org.specs2.runner._
 import org.junit.runner._
 
@@ -24,8 +17,6 @@ import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
 
-import play.api.test._
-import play.api.test.Helpers._
 
 case object TestPartId extends ResultPartId {
   def name: String = "test"
@@ -74,31 +65,6 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       actor ! PushToCache(url, valueMap)
       actor ! PullFromCache(url)
       expectMsg(CacheFound(url, valueMap))
-    }
-  }
-
-  "Server actor" must {
-    val wsProbe = TestProbe()
-    val estimatorProbe = TestProbe()
-    val server = system.actorOf(
-      Props(classOf[ServerActor],
-        (_ : ActorRefFactory) => wsProbe.ref,
-        (_ : ActorRefFactory) => estimatorProbe.ref)
-    )
-
-    "return response for http requests" in {
-      server ! RequestMessage(Estimate(url), RestOrigin)
-      estimatorProbe.expectMsg(Estimate(url))
-      estimatorProbe.send(server, EstimateResult(url, valueMap, true))
-      expectMsg(JsonMessage(responseMap))
-    }
-
-    "send response to ws for ws requests" in {
-      val userChannelId = UserChannelId(UserId("foo"), "bar")
-      server ! RequestMessage(Estimate(url), SocketOrigin(userChannelId))
-      estimatorProbe.expectMsg(Estimate(url))
-      estimatorProbe.send(server, EstimateResult(url, valueMap, true))
-      wsProbe.expectMsg(PushSocket(userChannelId, JsonMessage(responseMap)))
     }
   }
 
@@ -242,8 +208,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       sub2.send(subscriber, Estimate(url))
       val result = EstimateResult(url, valueMap, true)
       estimator.reply(result)
-      sub1.expectMsg(result)
-      sub2.expectMsg(result)
+      sub1.expectMsg(MessageConverter.toRespondable(result))
+      sub2.expectMsg(MessageConverter.toRespondable(result))
     }
   }
 }

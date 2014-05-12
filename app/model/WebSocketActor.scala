@@ -47,7 +47,8 @@ class WebSocketActor(estimateFactory: ActorRefFactory => ActorRef,
             val urlOpt = (message \ "parameters" \ "url").asOpt[String]
             urlOpt.foreach(url => {
               log.debug(s"url is $url")
-              socketSubscriber ! RequestMessage(Estimate(url), SocketOrigin(userChannelId))})
+              socketSubscriber ! SubscribeSocket(userChannelId, url)
+            })
           }
           case None => Unit
         }
@@ -72,17 +73,15 @@ class WebSocketActor(estimateFactory: ActorRefFactory => ActorRef,
   }
 }
 
-trait SocketMessage extends ClientMessage {
+trait SocketMessage {
   def userChannelId: UserChannelId
 }
 
 trait ResponseMessage {
-  def responseFor: AwaitResponseMessage
-
   def isFinal: Boolean
 }
 
-case class StartSocket(userChannelId: UserChannelId) extends SocketMessage with AwaitResponseMessage
+case class StartSocket(userChannelId: UserChannelId) extends SocketMessage
 
 case class SocketHolder(userChannelId: UserChannelId,
                         toClient: Enumerator[JsValue],

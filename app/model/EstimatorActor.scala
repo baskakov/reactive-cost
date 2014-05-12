@@ -56,15 +56,9 @@ class EstimatorActor(cacheFactory: ActorRefFactory => ActorRef,
     }
 }
 
-case class Estimate(url: String) extends AwaitResponseMessage with EstimatorMessage
+case class Estimate(url: String)
 
-trait UrlResponseMessage extends ResponseMessage {
-    def url: String
-    
-    def responseFor = Estimate(url)
-}
-
-case class EstimateResult(url: String, values: Map[ResultPartId, ResultPartValue], isFinal: Boolean = true) extends UrlResponseMessage
+case class EstimateResult(url: String, values: Map[ResultPartId, ResultPartValue], isFinal: Boolean = true) extends ResponseMessage
 
 case class PullFromCache(url: String)
 

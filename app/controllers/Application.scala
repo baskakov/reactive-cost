@@ -18,8 +18,6 @@ import play.api.Routes
 
 import model._
 import scala.Some
-import model.SocketOrigin
-import model.RequestMessage
 
 object Application extends Controller with Secured {     
 
@@ -35,7 +33,7 @@ object Application extends Controller with Secured {
   
   def indexWS(clientGuid: String) = withAuthWS {
     userId =>
-      (webSocketActor ? (StartSocket(UserChannelId(userId, clientGuid)), RestOrigin)).mapTo[SocketHolder] map {
+      (webSocketActor ? StartSocket(UserChannelId(userId, clientGuid))).mapTo[SocketHolder] map {
         wrapper => (wrapper.fromClient, wrapper.toClient)
       }
   }

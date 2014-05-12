@@ -30,7 +30,7 @@ class SenderSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extend
     case Estimate(url) => subscribe(sender, url)
     case m @ EstimateResult(url, values, isFinal) =>
       if(isFinal) {
-        replySubscribers(url, _.map(ref => ref -> m))
+        replySubscribers(url, _.map(ref => ref -> MessageConverter.toRespondable(m)))
         unsubscribe(url)
       }
   }
