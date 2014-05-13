@@ -1,14 +1,17 @@
 package model
 
-import akka.actor.{Actor, ActorRef, ActorRefFactory}
+import akka.actor.{ActorRef, ActorRefFactory}
 import controllers.UserChannelId
+import akka.actor.Cancellable
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class SocketSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extends SubscriberActor[String, UserChannelId] {
   def receive = {
     case SubscribeSocket(channelId, url) => subscribe(channelId, url)
     case m @ EstimateResult(url, values, isFinal) =>
       replySubscribers(url, channellIds => Set((context.parent, MultiCastSocket(channellIds, MessageConverter.toRespondable(m)))))
-      if(isFinal) unsubscribe(url)
+      if(isFinal) unsubscribeAll(url)
   }
 
   def child: ActorRef = estimateFactory(context)
@@ -26,12 +29,50 @@ class SenderSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extend
 
   def messageToChild = url => Estimate(url)
 
+  var cancellable: Map[ActorRef, Cancellable] = Map.empty
+
   def receive = {
     case Estimate(url) => subscribe(sender, url)
     case m @ EstimateResult(url, values, isFinal) =>
       if(isFinal) {
         replySubscribers(url, _.map(ref => ref -> MessageConverter.toRespondable(m)))
-        unsubscribe(url)
+        unsubscribeAll(url)
       }
+      else
+        partialResult += url ->
+          EstimateResult(url,partialResult.get(url).map(_.values).getOrElse(Map.empty) ++ m.values, false)
+    case TimeoutRequest(recipient, url) => {
+      cancellable -= recipient
+      unsubscribe(recipient)
+      recipient ! MessageConverter.toRespondable(partialResult(url))
+    }
+  }
+
+  var partialResult: Map[String, EstimateResult] = Map.empty
+
+  override protected def subscribe(who: ActorRef, url: String) = {
+    super.subscribe(who, url)
+    val token = context.system.scheduler.scheduleOnce(1 second, self, TimeoutRequest(who, url))
+    cancellable += who -> token
+  }
+
+
+  override protected def unsubscribeAll(forWhat: String) {
+    partialResult -= forWhat
+    super.unsubscribeAll(forWhat)
+  }
+
+  override protected def sendReply(recipient: ActorRef, msg: Any): Unit = {
+    val token = cancellable.get(recipient)
+    val cancelled = token.map(_.isCancelled).getOrElse(true)
+    if(!cancelled) {
+      token.foreach(token => {
+        token.cancel()
+        cancellable -= recipient
+      })
+      super.sendReply(recipient, msg)
+    }
   }
 }
+
+case class TimeoutRequest(sender: ActorRef, url: String)

@@ -19,16 +19,20 @@ trait SubscriberActor[A, B] extends Actor {
 
   protected def messageToChild: A => Any
 
-  protected def unsubscribe(forWhat: A) {
+  protected def unsubscribeAll(forWhat: A) {
     processing -= forWhat
     subscribers = subscribers.filterNot(_._2 == forWhat)
   }
 
+  protected def unsubscribe(recipient: B) {
+    subscribers -= recipient
+  }
+
   protected def replySubscribers(forWhat: A, mailing: Set[B] => Set[(ActorRef, Any)]) {
     var recipients = subscribers.filter(_._2 == forWhat).map(_._1).toSet
-    mailing(recipients).foreach({
-      case (ref, msg) => ref ! msg
-    })
+    mailing(recipients).foreach((sendReply _).tupled)
   }
+
+  protected def sendReply(recipient: ActorRef, msg: Any) = recipient ! msg
 
 }

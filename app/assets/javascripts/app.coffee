@@ -1,12 +1,12 @@
 estimatorApp = window.angular.module('estimatorApp', ['ngSanitize'])
 
 estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) ->
-  S4 = -> (((1+Math.random())*0x10000)|0).toString(16).substring(1)				
-		
-  $scope.windowGuid = (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4())	
-		
+  S4 = -> (((1+Math.random())*0x10000)|0).toString(16).substring(1)
+
+  $scope.windowGuid = (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4())
+
   $log.info("angular init with guid " + $scope.windowGuid)
-  
+
   startWS = ->
     wsUrl = jsRoutes.controllers.Application.indexWS($scope.windowGuid).webSocketURL()
 
@@ -14,7 +14,7 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
     $scope.socket.onmessage = (msg) ->
       $scope.$apply(->
         processData(JSON.parse(msg.data)))
-        
+
   stopWS = ->
       $scope.socket.close() if $scope.socket
 
@@ -32,14 +32,20 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
     $log.info("estimating " + $scope.request.url)
     modelToHash()
     if $scope.mode == "post"
-        $scope.canceler = $q.defer();
-        $http(
-            method: 'GET'
-            url: jsRoutes.controllers.Application.estimate($scope.request.url).url
-            timeout: $scope.canceler.promise).success((data) ->
-                $log.info("received " + data.message)
-                $scope.canceler = null
-                processData(data)).error( -> $scope.canceler = null)
+        repeatHttpRequest = ->
+            executeHttpRequest() if $scope.mode == "post"
+        executeHttpRequest = ->
+            $scope.canceler = $q.defer();
+            $http(
+                method: 'GET'
+                url: jsRoutes.controllers.Application.estimate($scope.request.url).url
+                timeout: $scope.canceler.promise).success((data) ->
+                    $log.info("received " + data.message)
+                    $scope.canceler = null
+                    processData(data)
+                    repeatHttpRequest() if !$scope.result.isFinal
+                    ).error( -> $scope.canceler = null)
+        executeHttpRequest()
     else if $scope.mode == "socket"
       if $scope.socket
         $scope.socket.send(JSON.stringify(
@@ -58,9 +64,9 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
   $scope.result = {}
 
   $scope.request = {}
-  
+
   $scope.mode = "post"
-  
+
   $scope.setMode = (mode) ->
         if mode != $scope.mode
             if mode == "post"
@@ -71,8 +77,8 @@ estimatorApp.controller('MainController', (($scope, $http, $log, $location, $q) 
                 stopRequest()
                 $scope.mode = mode
                 startWS()
-                
-  stopRequest = -> 
+
+  stopRequest = ->
       $scope.canceler.resolve() if $scope.canceler
 
   hashToModel()
