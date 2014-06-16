@@ -10,6 +10,7 @@ import scala.concurrent.Future
 import akka.pattern.pipe
 import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.libs.json.Reads._
+import scala.util.Try
 
 class AlexaActor extends Actor {
     val AlexaTimeout = 10000
@@ -17,7 +18,7 @@ class AlexaActor extends Actor {
     lazy val log = Logger("application." + this.getClass.getName)
     
     override def receive = LoggingReceive  {
-        case AlexaRequest(url) => {
+        case AlexaPartId \ url => {
             val holder = WS.url("http://tools.mercenie.com/alexa-rank-checker/api/?format=json&urls=http://"+url).withRequestTimeout(AlexaTimeout)
             holder.get().map({
               response => {
@@ -32,16 +33,7 @@ class AlexaActor extends Actor {
                     log.info("alexa " +resultInt.toString)
                     resultInt
               }
-            }).recover({
-                case _ => -1
-            }).map(rank => AlexaResult(url, rank)).pipeTo(context.parent)
+            }).onComplete(AlexaPartId \ url pipe context.parent)
         }
     }
-}
-
-case class AlexaRequest(url: String)
-
-case class AlexaResult(url: String, rank: Int) extends ParsebleResultPartValue {
-    val partId = AlexaPartId
-    val content = rank
 }

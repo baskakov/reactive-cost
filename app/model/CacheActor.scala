@@ -7,7 +7,7 @@ import play.api.Logger
 import akka.event.LoggingReceive
 
 class CacheActor extends Actor {
-    val cache = new CacheHolder[String, Map[ResultPartId, ResultPartValue]]()
+    val cache = new CacheHolder[String, PartialHolder]()
     
     override def receive = LoggingReceive  {
         case PullFromCache(url) => cache.get(url) match {

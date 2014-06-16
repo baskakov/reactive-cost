@@ -19,13 +19,32 @@ import java.net.Socket
 import java.net.UnknownHostException
 import java.util.Collection
 import akka.event.LoggingReceive
+import PartValueImplicits._
 
-case class WhoisRequest(url: String)
+case class PartRequest[T](partId: ResultPartId[T], url: String) {
+  def response(result: Try[T]) = PartResult(this, result)
 
-case class WhoisResult(url: String, message: String) extends ResultPartValue {
-    val partId = WhoisPartId
+  def \(result: Try[T]) = response(result)
 
-  override def toString: String = s"WhoisResult($url, ...)"
+  def pipe(ref: ActorRef): Try[T] => Unit = result => ref ! this \ result
+
+  def success(result: T) = response(Success(result))
+
+  def failure(e: Throwable) = response(Failure(e))
+}
+
+object \ {
+  def unapply[T](req: PartRequest[T]): Option[(ResultPartId[T], String)] = {
+    Some(req.partId, req.url)
+  }
+}
+
+case class PartResult[T](request: PartRequest[T], result: Try[T])
+
+object PartValueImplicits {
+  implicit def anyToTry[T](value: => T): Try[T] = Try(value)
+
+  implicit def resultToHolder[T](result: PartResult[T]): PartialHolder = PartialHolder(result)
 }
 
 class WhoisActor extends Actor {
@@ -35,41 +54,29 @@ class WhoisActor extends Actor {
 
   lazy val serverFinder = new ServerDefinitionFinder()
 
-  private def whoisServers(url: String): Future[Seq[WhoisServer]] = future {
-    serverFinder.getServerDefinitionsForHostName(url).map(x => WhoisServer(x.getServerName, x.getServerAddress, x.getNameTld)).reverse
+  private def whoisServers(url: String): Future[List[WhoisServer]] = future {
+    serverFinder.getServerDefinitionsForHostName(url).map(x => WhoisServer(x.getServerName, x.getServerAddress, x.getNameTld)).reverse.toList
   }
 
-  private def askServersPack(url: String, servers: Seq[WhoisServer], failedServers: Seq[(WhoisServer,Throwable)] = Seq.empty): Future[WhoisResult] =
-    servers.headOption.map(server => {
-      log.info("Calling server %s %s".format(server.name, server.address))
-      future(Await.result[WhoisResult](askServer(url,server), 3 seconds)).recoverWith({
-        case t => {
-          log.warn("For url %s one of the servers (%s, %s) is not responding due to %s".format(url, server.name, server.address, t.getMessage))
-          askServersPack(url, servers.tail, failedServers :+ (server -> t))
-        }
+  private def askServersPack(url: String, servers: List[WhoisServer], failedServers: Seq[(WhoisServer,Throwable)] = Seq.empty): Future[String] =
+    servers match {
+      case server :: tail => Repeater.repeat(askServer(url,server)).recoverWith({
+        case t => askServersPack(url, tail, failedServers :+ (server -> t))
       })
-    }).getOrElse(Future.failed[WhoisResult](AllWhoisServersFailed(url, failedServers)))
+      case Nil => Future.failed(AllWhoisServersFailed(url, failedServers))
+    }
 
   def receive = LoggingReceive {
-    case WhoisRequest(url) => {
+    case WhoisPartId \ url => {
       val s = sender
-      whoisServers(url).flatMap(servers => askServersPack(url, servers)).recover({
-        case NoWhoisServersFound(_) => WhoisResult(url, "Отсутствуют WHOIS серверы")
-        case AllWhoisServersFailed(_, ss) => WhoisResult(url, "Все WHOIS серверы недоступны: " + ss.map(_._1.name).mkString(", "))
-      }).onComplete({
-        case Success(r) => s ! r
-        case Failure(e) => {
-          log.error(e.getMessage())
-          log.error(e.getStackTraceString)
-          s ! WhoisResult(url, "Неизвестная ошибка")
-        }
-      })
+      whoisServers(url).flatMap(servers => askServersPack(url, servers)).onComplete(WhoisPartId \ url pipe s)
     }
   }
 
   private val WhoisPort = 43
 
-  def askServer(urlToAsk: String, server: WhoisServer) = CloseableFuture(
+
+  def askServer(urlToAsk: String, server: WhoisServer): Future[String] = CloseableFuture(
     {new Socket(server.address, WhoisPort)},
     (s: Socket) => s.getInputStream,
     (socket: Socket, inputStream: InputStream) => {
@@ -87,7 +94,7 @@ class WhoisActor extends Actor {
         }
       }
       val result = readBuffer(Nil).reverse.mkString("\r\n")
-      WhoisResult(urlToAsk, result)
+      result
     })
 }
 

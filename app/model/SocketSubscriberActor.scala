@@ -9,9 +9,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class SocketSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extends SubscriberActor[String, UserChannelId] {
   def receive = {
     case SubscribeSocket(channelId, url) => subscribe(channelId, url)
-    case m @ EstimateResult(url, values, isFinal) =>
+    case m @ EstimateResult(url, values) =>
       replySubscribers(url, channellIds => Set((context.parent, MultiCastSocket(channellIds, MessageConverter.toRespondable(m)))))
-      if(isFinal) unsubscribeAll(url)
+      if(values.isFull) unsubscribeAll(url)
   }
 
   def child: ActorRef = estimateFactory(context)
@@ -33,14 +33,14 @@ class SenderSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extend
 
   def receive = {
     case Estimate(url) => subscribe(sender, url)
-    case m @ EstimateResult(url, values, isFinal) =>
-      if(isFinal) {
+    case m @ EstimateResult(url, values) =>
+      if(values.isFull) {
         replySubscribers(url, _.map(ref => ref -> MessageConverter.toRespondable(m)))
         unsubscribeAll(url)
       }
       else
         partialResult += url ->
-          EstimateResult(url,partialResult.get(url).map(_.values).getOrElse(Map.empty) ++ m.values, false)
+          EstimateResult(url,partialResult.get(url).map(_.holder).getOrElse(PartialHolder(url)) ++ values)
     case TimeoutRequest(recipient, url) => {
       cancellable -= recipient
       unsubscribe(recipient)

@@ -21,6 +21,9 @@ class RetrieverActor(whoisFactory: ActorRefFactory => ActorRef,
     val inetAddressActor = ipFactory(context)
     
     val alexaActor = alexaFactory(context)
+
+    lazy val childWorkers = Map(WhoisPartId -> whoisActor, PageRankPartId -> pageRankActor,
+      InetAddressPartId -> inetAddressActor, AlexaPartId -> alexaActor)
     
     type PartialValues = Map[String, PartialHolder]
     
@@ -29,33 +32,34 @@ class RetrieverActor(whoisFactory: ActorRefFactory => ActorRef,
     var partialValues: PartialValues = Map.empty
     
     def createEmptyHolder(url: String) {
-        partialValues += (url -> PartialHolder(Map.empty))
+        partialValues += (url -> PartialHolder(url))
     }
     
     def holderBy(url: String) = partialValues(url)
     
-    def appendPart(partValue: ResultPartValue) {
-        val url = partValue.url
-        val updatedHolder = holderBy(url) + (partValue.partId, partValue)
+    def appendPart[T](partValue: PartResult[T]) {
+        val url = partValue.request.url
+        val updatedHolder = holderBy(url) + (partValue)
         partialValues += (url -> updatedHolder)
     }
     
     def removeUrl(url: String) {
         partialValues -= url
     }
-    
+
+    import PartValueImplicits._
     override def receive = LoggingReceive {
-        case partValue: ResultPartValue => {
-            val url = partValue.url
+        case partValue: PartResult[Any] => {
+            val url = partValue.request.url
             appendPart(partValue)
             val currentHolder = holderBy(url)
-            
+
             val resultMessage = {
-                if (currentHolder.isFull) Retrieved(url, currentHolder.values, true)
-                else Retrieved(url, Map(partValue.partId -> partValue), false)
+                if (currentHolder.isFull) Retrieved(url, currentHolder)
+                else Retrieved(url, partValue)
             }
             
-            if (resultMessage.isFinal) removeUrl(url)
+            if (resultMessage.holder.isFull) removeUrl(url)
 
             context.parent ! resultMessage
         }
@@ -63,14 +67,11 @@ class RetrieverActor(whoisFactory: ActorRefFactory => ActorRef,
             val alreadySent = partialValues.contains(url)
             if (!alreadySent) {
                 createEmptyHolder(url)
-                whoisActor ! WhoisRequest(url)
-                pageRankActor ! PageRankRequest(url)
-                inetAddressActor ! InetAddressRequest(url)
-                alexaActor ! AlexaRequest(url)
+                childWorkers.foreach(x => x._2 ! PartRequest(x._1, url))
             }
             else {
                 val currentHolder = holderBy(url)
-                if(currentHolder.nonEmpty) sender ! Retrieved(url, currentHolder.values, false)
+                if(currentHolder.nonEmpty) sender ! Retrieved(url, currentHolder)
             }
         }
     }

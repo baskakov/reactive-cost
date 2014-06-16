@@ -1,13 +1,12 @@
 package model
 
+import scala.util.Success
+
 object MessageConverter {
   def toRespondable: ResponseMessage => RespondableMessage = {
     case r: RespondableMessage => r
-    case EstimateResult(url, values, isFinal) => JsonMessage(values.map({
-      case (k, w: WhoisResult) => (k.name -> w.message)
-      case (k, p: PageRankResponse) => (k.name -> p.rank)
-      case (k, i: InetAddressResult) => (k.name -> i.values)
-      case (k, r: ParsebleResultPartValue) => (k.name -> r.content)
-    }) ++ Map("isFinal" -> isFinal, "url" -> url))
+    case EstimateResult(url, values) => JsonMessage(values.toMap.map({
+      case (partId, Success(v)) => partId.name -> v
+    }) ++ Map("isFinal" -> values.isFull, "url" -> url))
   }
 }
