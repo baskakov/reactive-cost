@@ -52,7 +52,7 @@ class SenderSubscriberActor(estimateFactory: ActorRefFactory => ActorRef) extend
 
   override protected def subscribe(who: ActorRef, url: String) = {
     super.subscribe(who, url)
-    val token = context.system.scheduler.scheduleOnce(1 second, self, TimeoutRequest(who, url))
+    val token = context.system.scheduler.scheduleOnce(3 second, self, TimeoutRequest(who, url))
     cancellable += who -> token
   }
 

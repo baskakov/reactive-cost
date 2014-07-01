@@ -60,8 +60,12 @@ class WhoisActor extends Actor {
 
   private def askServersPack(url: String, servers: List[WhoisServer], failedServers: Seq[(WhoisServer,Throwable)] = Seq.empty): Future[String] =
     servers match {
-      case server :: tail => Repeater.repeat(askServer(url,server)).recoverWith({
-        case t => askServersPack(url, tail, failedServers :+ (server -> t))
+      case server :: tail => askServer(url,server).recoverWith({
+        case t => {
+          log.error("Whois Server Failed: " + server.address)
+          t.printStackTrace()
+          askServersPack(url, tail, failedServers :+ (server -> t))
+        }
       })
       case Nil => Future.failed(AllWhoisServersFailed(url, failedServers))
     }

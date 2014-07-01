@@ -15,7 +15,8 @@ case class JsonMessage(map: Map[String, Any]) extends RespondableMessage {
       case s: String => Json.toJson(s)
       case b: Boolean => Json.toJson(b)
       case i: Int => Json.toJson(i)
-      case l: List[Any] => Json.toJson(l.map(convertToJson))
+      case m: Map[String, Any] => JsonMessage(m).toJson
+      case l: Iterable[Any] => Json.toJson(l.map(convertToJson))
       case c => sys.error("Additional type support is required for JsonMessage.toJson " + c.toString)
     }
 }
